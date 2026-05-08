@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHERO OPS</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ─── Reset & Base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:       #f5f5f7;
+  --surface:  #ffffff;
+  --border:   #e8e8e8;
+  --text:     #1d1d1f;
+  --sub:      #86868b;
+  --accent:   #e63946;
+  --accent-d: #c0303b;
+  --green:    #34c759;
+  --shadow:   0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+  --radius:   12px;
+  --transition: 0.2s ease;
+}
+[data-theme="dark"] {
+  --bg:      #1a1a1a;
+  --surface: #242424;
+  --border:  #333333;
+  --text:    #f5f5f5;
+  --sub:     #86868b;
+  --shadow:  0 1px 3px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.2);
+}
+html { font-size: 16px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, 'Inter', BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  min-height: 100vh;
+  transition: background var(--transition), color var(--transition);
+}
+
+/* ─── Layout ────────────────────────────────────────────────────────────────── */
+.app { max-width: 1200px; margin: 0 auto; padding: 24px 16px 80px; }
+@media (min-width: 640px) { .app { padding: 32px 24px 64px; } }
+
+/* ─── Header ────────────────────────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+@media (min-width: 640px) { header { margin-bottom: 28px; } }
+.header-left { display: flex; align-items: center; gap: 12px; }
+.logo {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.header-subtitle {
+  font-size: 12px;
+  color: var(--sub);
+  letter-spacing: 0.04em;
+}
+.header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ─── Period Switcher ───────────────────────────────────────────────────────── */
+.period-tabs {
+  display: flex;
+  background: var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+[data-theme="dark"] .period-tabs { background: var(--border); }
+.period-tab {
+  border: none;
+  background: transparent;
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+@media (min-width: 400px) { .period-tab { padding: 5px 14px; } }
+.period-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,.1);
+}
+
+/* ─── Theme Toggle ──────────────────────────────────────────────────────────── */
+.theme-btn {
+  width: 36px; height: 36px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  transition: all var(--transition);
+  color: var(--text);
+}
+.theme-btn:hover { border-color: var(--accent); }
+
+/* ─── Settings ───────────────────────────────────────────────────────────────── */
+.settings-btn {
+  width: 36px; height: 36px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  transition: all var(--transition);
+  color: var(--sub);
+}
+.settings-btn:hover { border-color: var(--accent); color: var(--accent); }
+.settings-section { margin-bottom: 18px; }
+.settings-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sub);
+  margin-bottom: 10px;
+}
+.connect-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: rgba(52,199,89,.12);
+  color: var(--green);
+  margin-left: 8px;
+}
+.connect-status.disconnected {
+  background: rgba(134,134,139,.1);
+  color: var(--sub);
+}
+.btn-oauth {
+  width: 100%;
+  padding: 9px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--sub);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  margin-top: 8px;
+}
+.btn-oauth:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ─── WhatsApp Button ───────────────────────────────────────────────────────── */
+.wa-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+@media (min-width: 400px) { .wa-btn { padding: 8px 14px; } }
+.wa-btn .wa-label { display: none; }
+@media (min-width: 500px) { .wa-btn .wa-label { display: inline; } }
+.wa-btn:hover { background: var(--accent-d); }
+.wa-btn.copied { background: var(--green); }
+
+/* ─── KPI Strip ─────────────────────────────────────────────────────────────── */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+@media (min-width: 640px) {
+  .kpi-strip { grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+}
+/* First KPI card spans full width on mobile */
+.kpi-card:first-child { grid-column: 1 / -1; }
+@media (min-width: 640px) { .kpi-card:first-child { grid-column: auto; } }
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  box-shadow: var(--shadow);
+  transition: background var(--transition), border-color var(--transition);
+}
+.kpi-card.accent { border-top: 2px solid var(--accent); }
+.kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sub);
+  margin-bottom: 6px;
+}
+.kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1.1;
+}
+@media (min-width: 640px) { .kpi-value { font-size: 28px; } }
+.kpi-sub {
+  font-size: 12px;
+  color: var(--sub);
+  margin-top: 4px;
+}
+
+/* ─── Channel Grid ──────────────────────────────────────────────────────────── */
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sub);
+  margin-bottom: 12px;
+}
+.channel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+@media (min-width: 480px) { .channel-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 24px; } }
+.channel-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: background var(--transition), border-color var(--transition), transform 0.15s ease;
+  cursor: default;
+}
+@media (min-width: 480px) { .channel-card { padding: 16px 18px; gap: 6px; } }
+.channel-card:hover { transform: translateY(-1px); border-color: var(--accent); }
+.channel-header { display: flex; align-items: center; justify-content: space-between; }
+.channel-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sub);
+  letter-spacing: 0.04em;
+}
+.badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+.badge-live { background: rgba(52,199,89,.15); color: var(--green); }
+.badge-manual { background: rgba(134,134,139,.12); color: var(--sub); }
+.channel-revenue {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+.channel-orders {
+  font-size: 11px;
+  color: var(--sub);
+}
+
+/* ─── Chart ─────────────────────────────────────────────────────────────────── */
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  margin-bottom: 18px;
+  transition: background var(--transition), border-color var(--transition);
+}
+@media (min-width: 640px) { .chart-card { padding: 22px; margin-bottom: 24px; } }
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.chart-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.chart-sub { font-size: 11px; color: var(--sub); }
+.chart-wrap { position: relative; height: 200px; }
+
+/* ─── Manual Entry Modal ────────────────────────────────────────────────────── */
+.fab {
+  position: fixed;
+  bottom: 28px; right: 28px;
+  width: 48px; height: 48px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 22px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(230,57,70,.4);
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+  z-index: 100;
+}
+.fab:hover { background: var(--accent-d); transform: scale(1.08); }
+
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.4);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+.overlay.open { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 16px;
+  width: calc(100% - 32px);
+  max-width: 440px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.2);
+  animation: modal-in 0.2s ease;
+}
+@media (min-width: 480px) { .modal { padding: 28px; width: 100%; } }
+@keyframes modal-in { from { opacity: 0; transform: translateY(12px) scale(.97); } }
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+.form-row { margin-bottom: 14px; }
+.form-row label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sub); margin-bottom: 6px; }
+.form-row select,
+.form-row input {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.form-row select:focus,
+.form-row input:focus { border-color: var(--accent); }
+.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+.btn-primary {
+  flex: 1;
+  padding: 10px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.btn-primary:hover { background: var(--accent-d); }
+.btn-secondary {
+  padding: 10px 18px;
+  background: transparent;
+  color: var(--sub);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-secondary:hover { border-color: var(--text); color: var(--text); }
+
+/* ─── Status & Loading ──────────────────────────────────────────────────────── */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  font-size: 12px;
+  color: var(--sub);
+}
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--sub);
+  animation: pulse 2s infinite;
+}
+.status-dot.loading { background: #ff9f0a; }
+.status-dot.ready   { background: var(--green); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+.skeleton {
+  background: linear-gradient(90deg, var(--border) 25%, var(--bg) 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 6px;
+}
+@keyframes shimmer { from{background-position:200% 0} to{background-position:-200% 0} }
+
+/* ─── Toast ─────────────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 88px; right: 28px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: 8px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all 0.25s ease;
+  pointer-events: none;
+  z-index: 300;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <span class="logo">SHERO OPS</span>
+      <span class="header-subtitle">Sales Dashboard</span>
+    </div>
+    <div class="header-right">
+      <div class="period-tabs">
+        <button class="period-tab active" data-period="today">Today</button>
+        <button class="period-tab" data-period="mtd">MTD</button>
+        <button class="period-tab" data-period="ytd">YTD</button>
+      </div>
+      <button class="wa-btn" id="waBtn" onclick="copyWhatsApp()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+        <span class="wa-label">Copy Summary</span>
+      </button>
+      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
+      <button class="settings-btn" onclick="openSettings()" title="Settings">⚙️</button>
+    </div>
+  </header>
+
+  <!-- Status -->
+  <div class="status-bar">
+    <div class="status-dot loading" id="statusDot"></div>
+    <span id="statusText">Loading...</span>
+    <span id="dateRange" style="margin-left:auto;"></span>
+  </div>
+
+  <!-- KPI Strip -->
+  <div class="kpi-strip" id="kpiStrip">
+    <div class="kpi-card accent">
+      <div class="kpi-label">Total Revenue</div>
+      <div class="kpi-value" id="kpiRevenue"><span class="skeleton" style="width:120px;height:28px;display:block;"></span></div>
+      <div class="kpi-sub" id="kpiRevenueLabel">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total Orders</div>
+      <div class="kpi-value" id="kpiOrders"><span class="skeleton" style="width:80px;height:28px;display:block;"></span></div>
+      <div class="kpi-sub" id="kpiOrdersLabel">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Avg Order Value</div>
+      <div class="kpi-value" id="kpiAov"><span class="skeleton" style="width:90px;height:28px;display:block;"></span></div>
+      <div class="kpi-sub" id="kpiAovLabel">—</div>
+    </div>
+  </div>
+
+  <!-- Channel Cards -->
+  <div class="section-label">Channels</div>
+  <div class="channel-grid" id="channelGrid">
+    <!-- populated by JS -->
+  </div>
+
+  <!-- Trend Chart -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title">30-Day Revenue Trend</div>
+        <div class="chart-sub">Manual entries only · API data coming soon</div>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="trendChart"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<!-- FAB -->
+<button class="fab" onclick="openModal()" title="Add manual entry">+</button>
+
+<!-- Modal -->
+<div class="overlay" id="overlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Add Manual Entry</div>
+    <div class="form-row">
+      <label>Channel</label>
+      <select id="mChannel">
+        <option value="tiktok">TikTok Shop</option>
+        <option value="lazada">Lazada</option>
+        <option value="parkson">Parkson</option>
+        <option value="watsons">Watsons</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Date</label>
+      <input type="date" id="mDate">
+    </div>
+    <div class="form-row form-row-2">
+      <div>
+        <label>Revenue (RM)</label>
+        <input type="number" id="mRevenue" placeholder="0.00" step="0.01" min="0">
+      </div>
+      <div>
+        <label>Orders</label>
+        <input type="number" id="mOrders" placeholder="0" min="0">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Notes (optional)</label>
+      <input type="text" id="mNotes" placeholder="e.g. Weekend sale promo">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveEntry()">Save Entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="overlay" id="settingsOverlay" onclick="closeSettings(event)">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:480px;">
+    <div class="modal-title">⚙️ Settings</div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">Shopify
+        <span class="connect-status disconnected" id="shopifyStatus">Disconnected</span>
+      </div>
+      <div class="form-row">
+        <label>Store Domain</label>
+        <input type="text" id="sShopifyStore" placeholder="yourstore.myshopify.com">
+      </div>
+      <div class="form-row">
+        <label>Access Token <span style="font-weight:400;text-transform:none;letter-spacing:0">(paste from Shopify Admin → Apps → Custom Apps)</span></label>
+        <input type="text" id="sShopifyToken" placeholder="shpat_xxxxxxxx" autocomplete="off">
+      </div>
+      <button class="btn-oauth" onclick="startShopifyOAuth()">🔗 Or connect via OAuth (for Render deployment)</button>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">SHERO POS API</div>
+      <div class="form-row">
+        <label>API Base URL</label>
+        <input type="text" id="sPosUrl" placeholder="https://bloom-pos.onrender.com">
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeSettings()">Cancel</button>
+      <button class="btn-primary" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ─── State ──────────────────────────────────────────────────────────────────── */
+let currentPeriod = 'today';
+let summaryData = null;
+let trendChart = null;
+
+/* ─── Init ───────────────────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  // Default modal date to today
+  const today = new Date(Date.now() + 8*3600000).toISOString().slice(0, 10);
+  document.getElementById('mDate').value = today;
+
+  // Period tabs
+  document.querySelectorAll('.period-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.period-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentPeriod = btn.dataset.period;
+      loadSummary();
+    });
+  });
+
+  // Theme persistence
+  const saved = localStorage.getItem('shero-theme') || 'light';
+  setTheme(saved);
+
+  loadSummary();
+  loadTrend();
+});
+
+/* ─── Theme ──────────────────────────────────────────────────────────────────── */
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  setTheme(next);
+}
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  document.getElementById('themeBtn').textContent = t === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('shero-theme', t);
+  if (trendChart) updateChartTheme();
+}
+
+/* ─── Summary ────────────────────────────────────────────────────────────────── */
+async function loadSummary() {
+  setStatus('loading', 'Fetching data...');
+  try {
+    const resp = await fetch(`/api/summary?period=${currentPeriod}`);
+    summaryData = await resp.json();
+    renderSummary(summaryData);
+    setStatus('ready', 'Updated just now');
+  } catch (e) {
+    setStatus('error', 'Failed to load — retrying in 10s');
+    setTimeout(loadSummary, 10000);
+  }
+}
+
+function renderSummary(data) {
+  const { total, channels, start, end, period } = data;
+
+  // Date range label
+  document.getElementById('dateRange').textContent =
+    period === 'today' ? formatDate(start) : `${formatDate(start)} — ${formatDate(end)}`;
+
+  // KPI
+  document.getElementById('kpiRevenue').textContent = formatMYR(total.revenue);
+  document.getElementById('kpiOrders').textContent = total.orders.toLocaleString();
+  const aov = total.orders > 0 ? total.revenue / total.orders : 0;
+  document.getElementById('kpiAov').textContent = formatMYR(aov);
+  document.getElementById('kpiRevenueLabel').textContent = periodLabel(period);
+  document.getElementById('kpiOrdersLabel').textContent = periodLabel(period);
+  document.getElementById('kpiAovLabel').textContent = total.orders > 0 ? `${total.orders} orders` : '—';
+
+  // Channels
+  const grid = document.getElementById('channelGrid');
+  grid.innerHTML = channels.map(ch => `
+    <div class="channel-card">
+      <div class="channel-header">
+        <span class="channel-name">${ch.label}</span>
+        <span class="badge ${ch.live ? 'badge-live' : 'badge-manual'}">${ch.live ? 'Live' : 'Manual'}</span>
+      </div>
+      <div class="channel-revenue">${formatMYR(ch.revenue)}</div>
+      <div class="channel-orders">${ch.orders} order${ch.orders !== 1 ? 's' : ''}</div>
+    </div>
+  `).join('');
+}
+
+/* ─── Trend Chart ────────────────────────────────────────────────────────────── */
+async function loadTrend() {
+  try {
+    const resp = await fetch('/api/summary/trend?days=30');
+    const { trend } = await resp.json();
+    renderChart(trend);
+  } catch (e) {
+    console.error('Trend load failed', e);
+  }
+}
+
+function renderChart(trend) {
+  const isDark = document.documentElement.dataset.theme === 'dark';
+  const labels = trend.map(d => d.date.slice(5)); // MM-DD
+  const values = trend.map(d => d.revenue);
+
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  if (trendChart) trendChart.destroy();
+
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Revenue (RM)',
+        data: values,
+        borderColor: '#e63946',
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        fill: true,
+        backgroundColor: (ctx) => {
+          const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 200);
+          g.addColorStop(0, 'rgba(230,57,70,.15)');
+          g.addColorStop(1, 'rgba(230,57,70,0)');
+          return g;
+        },
+        tension: 0.4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' RM ' + ctx.raw.toFixed(2)
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: isDark ? '#666' : '#aaa', font: { size: 10 }, maxTicksLimit: 8 }
+        },
+        y: {
+          grid: { color: isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.04)' },
+          ticks: { color: isDark ? '#666' : '#aaa', font: { size: 10 }, callback: v => 'RM' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v) }
+        }
+      }
+    }
+  });
+}
+
+function updateChartTheme() {
+  if (!trendChart) return;
+  const isDark = document.documentElement.dataset.theme === 'dark';
+  trendChart.options.scales.x.ticks.color = isDark ? '#666' : '#aaa';
+  trendChart.options.scales.y.ticks.color = isDark ? '#666' : '#aaa';
+  trendChart.options.scales.y.grid.color = isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.04)';
+  trendChart.update();
+}
+
+/* ─── Manual Entry Modal ─────────────────────────────────────────────────────── */
+function openModal() { document.getElementById('overlay').classList.add('open'); }
+function closeModal(e) {
+  if (!e || e.target === document.getElementById('overlay')) {
+    document.getElementById('overlay').classList.remove('open');
+  }
+}
+
+async function saveEntry() {
+  const payload = {
+    channel:    document.getElementById('mChannel').value,
+    entry_date: document.getElementById('mDate').value,
+    revenue:    parseFloat(document.getElementById('mRevenue').value) || 0,
+    orders:     parseInt(document.getElementById('mOrders').value) || 0,
+    notes:      document.getElementById('mNotes').value || null
+  };
+  if (!payload.entry_date) return showToast('Select a date');
+  try {
+    await fetch('/api/manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    closeModal();
+    showToast('Entry saved');
+    loadSummary();
+    loadTrend();
+    // Reset
+    document.getElementById('mRevenue').value = '';
+    document.getElementById('mOrders').value = '';
+    document.getElementById('mNotes').value = '';
+  } catch (e) {
+    showToast('Save failed');
+  }
+}
+
+/* ─── WhatsApp Summary ───────────────────────────────────────────────────────── */
+function copyWhatsApp() {
+  if (!summaryData) return showToast('Data not loaded yet');
+  const { total, channels, period, start, end } = summaryData;
+  const aov = total.orders > 0 ? (total.revenue / total.orders).toFixed(2) : '0.00';
+  const dateStr = period === 'today' ? formatDate(start) : `${formatDate(start)} – ${formatDate(end)}`;
+  const lines = [
+    `🔴 *SHERO Sales — ${periodLabel(period)}*`,
+    `📅 ${dateStr}`,
+    ``,
+    `*Total: RM ${total.revenue.toFixed(2)}  |  ${total.orders} orders  |  AOV RM ${aov}*`,
+    ``,
+    ...channels.map(ch => `• ${ch.label}: RM ${ch.revenue.toFixed(2)} (${ch.orders} orders)`),
+    ``,
+    `_Generated by SHERO OPS_`
+  ];
+  const text = lines.join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('waBtn');
+    btn.classList.add('copied');
+    btn.querySelector('span') ? null : null;
+    showToast('Copied to clipboard');
+    setTimeout(() => btn.classList.remove('copied'), 2000);
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    showToast('Copied to clipboard');
+  });
+}
+
+/* ─── Helpers ────────────────────────────────────────────────────────────────── */
+function formatMYR(n) {
+  return 'RM ' + (n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function formatDate(d) {
+  if (!d) return '';
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function periodLabel(p) {
+  return { today: 'Today', mtd: 'Month to date', ytd: 'Year to date' }[p] || p;
+}
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot ' + state;
+  document.getElementById('statusText').textContent = text;
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+/* ─── Settings ───────────────────────────────────────────────────────────────── */
+async function openSettings() {
+  document.getElementById('settingsOverlay').classList.add('open');
+  try {
+    const r = await fetch('/api/settings');
+    const s = await r.json();
+    document.getElementById('sShopifyStore').value = s.shopify_store || '';
+    document.getElementById('sShopifyToken').value = s.shopify_token_set ? '••••••••' : '';
+    document.getElementById('sPosUrl').value = s.pos_api_url || '';
+    const status = document.getElementById('shopifyStatus');
+    if (s.shopify_token_set) {
+      status.textContent = 'Connected';
+      status.classList.remove('disconnected');
+    } else {
+      status.textContent = 'Disconnected';
+      status.classList.add('disconnected');
+    }
+  } catch (e) { showToast('Failed to load settings'); }
+}
+
+function closeSettings(e) {
+  if (!e || e.target === document.getElementById('settingsOverlay')) {
+    document.getElementById('settingsOverlay').classList.remove('open');
+  }
+}
+
+async function saveSettings() {
+  const body = {};
+  const store = document.getElementById('sShopifyStore').value.trim();
+  const token = document.getElementById('sShopifyToken').value.trim();
+  const pos   = document.getElementById('sPosUrl').value.trim();
+  if (store) body.shopify_store = store;
+  if (token && !token.startsWith('••')) body.shopify_token = token;
+  if (pos)   body.pos_api_url = pos;
+
+  try {
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    closeSettings();
+    showToast('Settings saved — refreshing data…');
+    setTimeout(() => { loadSummary(); loadTrend(); }, 800);
+  } catch (e) { showToast('Save failed'); }
+}
+
+function startShopifyOAuth() {
+  const store = document.getElementById('sShopifyStore').value.trim();
+  if (!store) { showToast('Enter your store domain first'); return; }
+  window.location.href = `/api/shopify/auth?shop=${encodeURIComponent(store)}`;
+}
+
+// Handle ?connected=shopify redirect from OAuth callback
+if (new URLSearchParams(location.search).get('connected') === 'shopify') {
+  history.replaceState({}, '', '/');
+  showToast('✅ Shopify connected!');
+  loadSummary();
+}
+</script>
+</body>
+</html>

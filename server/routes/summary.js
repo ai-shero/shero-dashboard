@@ -1,0 +1,101 @@
+const express = require('express');
+const router = express.Router();
+const { db } = require('../db');
+const { apiFetch } = require('../utils/fetch');
+
+function getDateRange(period) {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  // MYT = UTC+8
+  const myt = new Date(now.getTime() + 8 * 3600000);
+  const today = myt.toISOString().slice(0, 10);
+
+  if (period === 'today') return { start: today, end: today };
+  if (period === 'mtd') return { start: today.slice(0, 8) + '01', end: today };
+  if (period === 'ytd') return { start: today.slice(0, 5) + '01-01', end: today };
+  // custom: period = "2026-05-01:2026-05-07"
+  if (period && period.includes(':')) {
+    const [s, e] = period.split(':');
+    return { start: s, end: e };
+  }
+  return { start: today, end: today };
+}
+
+async function fetchChannel(url) {
+  try {
+    const resp = await apiFetch(url);
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch { return null; }
+}
+
+// GET /api/summary?period=today|mtd|ytd
+router.get('/', async (req, res) => {
+  const period = req.query.period || 'today';
+  const { start, end } = getDateRange(period);
+  const base = `http://localhost:${process.env.PORT || 3200}`;
+
+  const [shopify, pos, shopee, manualRaw] = await Promise.all([
+    fetchChannel(`${base}/api/shopify?start=${start}&end=${end}`),
+    fetchChannel(`${base}/api/pos?start=${start}&end=${end}`),
+    fetchChannel(`${base}/api/shopee?start=${start}&end=${end}`),
+    fetchChannel(`${base}/api/manual/aggregate?channels=tiktok,lazada,parkson,watsons&start=${start}&end=${end}`)
+  ]);
+
+  const manualByChannel = {};
+  if (Array.isArray(manualRaw)) {
+    manualRaw.forEach(r => { manualByChannel[r.channel] = r; });
+  }
+
+  const channels = [
+    { id: 'shopify',  label: 'Shopify',     revenue: shopify?.revenue  || 0, orders: shopify?.orders  || 0, live: shopify?.live  ?? false },
+    { id: 'shopee',   label: 'Shopee',      revenue: shopee?.revenue   || 0, orders: shopee?.orders   || 0, live: shopee?.live   ?? false },
+    { id: 'tiktok',   label: 'TikTok Shop', revenue: +(manualByChannel['tiktok']?.revenue  || 0), orders: +(manualByChannel['tiktok']?.orders  || 0), live: false },
+    { id: 'lazada',   label: 'Lazada',      revenue: +(manualByChannel['lazada']?.revenue  || 0), orders: +(manualByChannel['lazada']?.orders  || 0), live: false },
+    { id: 'pos',      label: 'SHERO POS',   revenue: pos?.revenue      || 0, orders: pos?.orders      || 0, live: pos?.live      ?? false },
+    { id: 'parkson',  label: 'Parkson',     revenue: +(manualByChannel['parkson']?.revenue || 0), orders: +(manualByChannel['parkson']?.orders || 0), live: false },
+    { id: 'watsons',  label: 'Watsons',     revenue: +(manualByChannel['watsons']?.revenue || 0), orders: +(manualByChannel['watsons']?.orders || 0), live: false },
+  ];
+
+  const totalRevenue = channels.reduce((s, c) => s + c.revenue, 0);
+  const totalOrders  = channels.reduce((s, c) => s + c.orders, 0);
+
+  res.json({
+    period,
+    start,
+    end,
+    total: { revenue: +totalRevenue.toFixed(2), orders: totalOrders },
+    channels
+  });
+});
+
+// GET /api/summary/trend?days=30  — daily totals for sparkline/chart
+router.get('/trend', async (req, res) => {
+  const days = Math.min(parseInt(req.query.days || '30'), 90);
+  const myt = new Date(Date.now() + 8 * 3600000);
+  const endDate = myt.toISOString().slice(0, 10);
+  const startDate = new Date(myt - (days - 1) * 86400000).toISOString().slice(0, 10);
+
+  // For manual channels, pull from DB
+  const result = await db.execute({
+    sql: `SELECT entry_date, SUM(revenue) as revenue, SUM(orders) as orders
+          FROM manual_entries
+          WHERE entry_date >= ? AND entry_date <= ?
+          GROUP BY entry_date ORDER BY entry_date`,
+    args: [startDate, endDate]
+  });
+
+  // Build full date range with zeros for gaps
+  const byDate = {};
+  result.rows.forEach(r => { byDate[r.entry_date] = { revenue: +r.revenue, orders: +r.orders }; });
+
+  const trend = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(new Date(startDate).getTime() + i * 86400000).toISOString().slice(0, 10);
+    trend.push({ date: d, revenue: byDate[d]?.revenue || 0, orders: byDate[d]?.orders || 0 });
+  }
+
+  res.json({ trend });
+});
+
+module.exports = router;
