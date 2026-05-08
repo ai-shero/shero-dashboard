@@ -562,10 +562,9 @@ header {
         <input type="text" id="sShopifyStore" placeholder="yourstore.myshopify.com">
       </div>
       <div class="form-row">
-        <label>Access Token <span style="font-weight:400;text-transform:none;letter-spacing:0">(paste from Shopify Admin → Apps → Custom Apps)</span></label>
-        <input type="text" id="sShopifyToken" placeholder="shpat_xxxxxxxx" autocomplete="off">
+        <label>Client Secret <span style="font-weight:400;text-transform:none;letter-spacing:0">(from Dev Dashboard → your app → Client secret)</span></label>
+        <input type="text" id="sShopifyToken" placeholder="shpss_xxxxxxxx" autocomplete="off">
       </div>
-      <button class="btn-oauth" onclick="startShopifyOAuth()">🔗 Or connect via OAuth (for Render deployment)</button>
     </div>
 
     <div class="settings-section">
@@ -848,10 +847,10 @@ async function openSettings() {
     const r = await fetch('/api/settings');
     const s = await r.json();
     document.getElementById('sShopifyStore').value = s.shopify_store || '';
-    document.getElementById('sShopifyToken').value = s.shopify_token_set ? '••••••••' : '';
+    document.getElementById('sShopifyToken').value = s.shopify_client_secret_set ? '••••••••' : '';
     document.getElementById('sPosUrl').value = s.pos_api_url || '';
     const status = document.getElementById('shopifyStatus');
-    if (s.shopify_token_set) {
+    if (s.shopify_client_secret_set && s.shopify_store) {
       status.textContent = 'Connected';
       status.classList.remove('disconnected');
     } else {
@@ -873,7 +872,7 @@ async function saveSettings() {
   const token = document.getElementById('sShopifyToken').value.trim();
   const pos   = document.getElementById('sPosUrl').value.trim();
   if (store) body.shopify_store = store;
-  if (token && !token.startsWith('••')) body.shopify_token = token;
+  if (token && !token.startsWith('••')) body.shopify_client_secret = token;
   if (pos)   body.pos_api_url = pos;
 
   try {

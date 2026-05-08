@@ -1,16 +1,58 @@
 const express = require('express');
 const router = express.Router();
-const crypto = require('crypto');
 const { apiFetch } = require('../utils/fetch');
-const { getSetting } = require('./settings');
+const { getSetting, setSetting } = require('./settings');
 
 const SHOPIFY_API_VERSION = '2024-01';
-const SCOPES = 'read_orders,read_products';
 
-async function getShopifyCredentials() {
-  const store = process.env.SHOPIFY_STORE || await getSetting('shopify_store');
-  const token = process.env.SHOPIFY_TOKEN || await getSetting('shopify_token');
-  return { store, token };
+// ── Token cache (in-memory + persisted to DB) ─────────────────────────────────
+let _tokenCache = null; // { token, expiresAt }
+
+async function getShopifyToken() {
+  // 1. Try in-memory cache
+  if (_tokenCache && Date.now() < _tokenCache.expiresAt - 60000) {
+    return _tokenCache.token;
+  }
+
+  // 2. Try DB cache
+  const stored      = await getSetting('shopify_access_token');
+  const storedExp   = await getSetting('shopify_token_expires_at');
+  if (stored && storedExp && Date.now() < parseInt(storedExp) - 60000) {
+    _tokenCache = { token: stored, expiresAt: parseInt(storedExp) };
+    return stored;
+  }
+
+  // 3. Fetch fresh token via client credentials grant
+  const store        = process.env.SHOPIFY_STORE || await getSetting('shopify_store');
+  const clientId     = process.env.SHOPIFY_CLIENT_ID     || 'ee20e6c4c23ecd743e9183797029f066';
+  const clientSecret = process.env.SHOPIFY_CLIENT_SECRET || await getSetting('shopify_client_secret');
+
+  if (!store || !clientSecret) return null;
+
+  const resp = await apiFetch(`https://${store}/admin/oauth/access_token`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ client_id: clientId, client_secret: clientSecret, grant_type: 'client_credentials' })
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    console.error('Shopify token fetch failed:', resp.status, err);
+    return null;
+  }
+
+  const data      = await resp.json();
+  const token     = data.access_token;
+  const expiresIn = data.expires_in || 86399; // seconds (~24h)
+  const expiresAt = Date.now() + expiresIn * 1000;
+
+  // Persist to DB and in-memory
+  await setSetting('shopify_access_token',    token);
+  await setSetting('shopify_token_expires_at', String(expiresAt));
+  _tokenCache = { token, expiresAt };
+
+  console.log(`[Shopify] Fresh token obtained, expires in ${Math.round(expiresIn/3600)}h`);
+  return token;
 }
 
 // GET /api/shopify?start=YYYY-MM-DD&end=YYYY-MM-DD
@@ -18,7 +60,8 @@ router.get('/', async (req, res) => {
   const { start, end } = req.query;
   if (!start || !end) return res.status(400).json({ error: 'start and end required' });
 
-  const { store, token } = await getShopifyCredentials();
+  const store = process.env.SHOPIFY_STORE || await getSetting('shopify_store');
+  const token = await getShopifyToken();
 
   if (token && store) {
     try {
@@ -35,25 +78,32 @@ router.get('/', async (req, res) => {
         url = next ? next[1] : null;
       }
 
-      const orders = allOrders.filter(o => o.financial_status !== 'refunded' && o.financial_status !== 'voided');
+      const orders  = allOrders.filter(o => o.financial_status !== 'refunded' && o.financial_status !== 'voided');
       const revenue = orders.reduce((s, o) => s + parseFloat(o.total_price || 0), 0);
       return res.json({ channel: 'shopify', revenue: +revenue.toFixed(2), orders: orders.length, live: true });
     } catch (err) {
       console.error('Shopify API error:', err.message);
+      _tokenCache = null; // clear cache so next call retries token
     }
   }
 
   const mock = generateMock('shopify', start, end, 4200, 38);
-  res.json({ ...mock, live: false, note: 'mock — add SHOPIFY_TOKEN via Settings' });
+  res.json({ ...mock, live: false, note: 'mock — configure Shopify in Settings' });
 });
 
-// GET /api/shopify/test — verify stored credentials
+// GET /api/shopify/test — verify connection
 router.get('/test', async (req, res) => {
-  const { store, token } = await getShopifyCredentials();
-  if (!store || !token) return res.json({ ok: false, reason: 'No credentials saved' });
+  const store = process.env.SHOPIFY_STORE || await getSetting('shopify_store');
+  if (!store) return res.json({ ok: false, reason: 'No store domain saved' });
+
+  _tokenCache = null; // force fresh token
+  const token = await getShopifyToken();
+  if (!token) return res.json({ ok: false, reason: 'Could not obtain access token — check Client ID and Client Secret' });
+
   try {
-    const url = `https://${store}/admin/api/${SHOPIFY_API_VERSION}/shop.json`;
-    const resp = await apiFetch(url, { headers: { 'X-Shopify-Access-Token': token } });
+    const resp = await apiFetch(`https://${store}/admin/api/${SHOPIFY_API_VERSION}/shop.json`, {
+      headers: { 'X-Shopify-Access-Token': token }
+    });
     const body = await resp.json();
     if (!resp.ok) return res.json({ ok: false, status: resp.status, body });
     return res.json({ ok: true, shop: body.shop?.name, plan: body.shop?.plan_name });
@@ -62,48 +112,8 @@ router.get('/test', async (req, res) => {
   }
 });
 
-// GET /api/shopify/auth?shop=yourstore.myshopify.com — start OAuth
-router.get('/auth', (req, res) => {
-  const shop = req.query.shop;
-  if (!shop) return res.status(400).send('shop parameter required');
-  const clientId = process.env.SHOPIFY_CLIENT_ID || 'ee20e6c4c23ecd743e9183797029f066';
-  const redirectUri = `${req.protocol}://${req.get('host')}/api/shopify/callback`;
-  const state = crypto.randomBytes(16).toString('hex');
-  res.cookie('shopify_oauth_state', state, { httpOnly: true, maxAge: 600000 });
-  const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${clientId}&scope=${SCOPES}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
-  res.redirect(authUrl);
-});
-
-// GET /api/shopify/callback — Shopify redirects here after auth
-router.get('/callback', async (req, res) => {
-  const { code, shop, state } = req.query;
-  const savedState = req.cookies?.shopify_oauth_state;
-  if (state !== savedState) return res.status(403).send('State mismatch — CSRF check failed');
-
-  const clientId = process.env.SHOPIFY_CLIENT_ID || 'ee20e6c4c23ecd743e9183797029f066';
-  const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
-  if (!clientSecret) return res.status(500).send('SHOPIFY_CLIENT_SECRET not configured');
-
-  try {
-    const resp = await apiFetch(`https://${shop}/admin/oauth/access_token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code })
-    });
-    if (!resp.ok) throw new Error(`Token exchange failed: ${resp.status}`);
-    const data = await resp.json();
-    const { setSetting } = require('./settings');
-    await setSetting('shopify_store', shop);
-    await setSetting('shopify_token', data.access_token);
-    res.redirect('/?connected=shopify');
-  } catch (err) {
-    console.error('Shopify OAuth error:', err.message);
-    res.status(500).send('OAuth failed: ' + err.message);
-  }
-});
-
 function generateMock(channel, start, end, baseRevenue, baseOrders) {
-  const days = Math.max(1, (new Date(end) - new Date(start)) / 86400000 + 1);
+  const days     = Math.max(1, (new Date(end) - new Date(start)) / 86400000 + 1);
   const variance = () => 0.7 + Math.random() * 0.6;
   return { channel, revenue: +(baseRevenue * days * variance() / 30).toFixed(2), orders: Math.round(baseOrders * days * variance() / 30) };
 }
