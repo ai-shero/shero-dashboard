@@ -15,14 +15,14 @@ const REDIRECT_URI        = process.env.SHOPIFY_REDIRECT_URI  || 'https://shero-
 // Visit http://localhost:3200/api/shopify/oauth/start in your logged-in Chrome
 router.get('/oauth/start', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
-  // Store state in a simple in-process map (survives the round-trip)
   oauthStates.add(state);
-  setTimeout(() => oauthStates.delete(state), 10 * 60 * 1000); // expire in 10 min
+  setTimeout(() => oauthStates.delete(state), 10 * 60 * 1000);
 
+  // No redirect_uri param — Shopify will redirect to the App URL (shero-dashboard.onrender.com)
+  // which our server handles via the root OAuth catch in index.js
   const url = `https://${SHOPIFY_STORE}/admin/oauth/authorize`
     + `?client_id=${CLIENT_ID}`
     + `&scope=${SCOPES}`
-    + `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
     + `&state=${state}`;
 
   console.log('[Shopify OAuth] Redirecting to Shopify consent page...');
@@ -31,12 +31,12 @@ router.get('/oauth/start', (req, res) => {
 
 const oauthStates = new Set();
 
-// ── OAuth: Step 2 — Shopify redirects back here with a code ──────────────────
-router.get('/oauth/callback', async (req, res) => {
-  const { code, state, hmac, shop } = req.query;
+// ── OAuth: Step 2 — shared handler (called from /oauth/callback AND root /)  ──
+async function handleOAuthCallback(req, res) {
+  const { code, state } = req.query;
 
   if (!oauthStates.has(state)) {
-    return res.status(403).send('Invalid state — possible CSRF. Please start again at /api/shopify/oauth/start');
+    return res.status(403).send('Invalid state. Please start again at /api/shopify/oauth/start');
   }
   oauthStates.delete(state);
 
@@ -83,7 +83,10 @@ router.get('/oauth/callback', async (req, res) => {
     console.error('[Shopify OAuth] Error:', err.message);
     res.status(500).send('Error: ' + err.message);
   }
-});
+}
+
+// Also keep the /oauth/callback route as a fallback
+router.get('/oauth/callback', handleOAuthCallback);
 
 // ── Token helper ─────────────────────────────────────────────────────────────
 let _tokenCache = null;
@@ -196,3 +199,4 @@ function generateMock(channel, start, end, baseRevenue, baseOrders) {
 }
 
 module.exports = router;
+module.exports.handleOAuthCallback = handleOAuthCallback;
