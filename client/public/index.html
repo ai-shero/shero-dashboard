@@ -283,6 +283,51 @@ header {
   color: var(--sub);
 }
 
+/* ─── Shopify Analytics Panel ───────────────────────────────────────────────── */
+.shopify-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  margin-bottom: 18px;
+  display: none;
+  transition: background var(--transition), border-color var(--transition);
+}
+.shopify-panel.visible { display: block; }
+@media (min-width: 640px) { .shopify-panel { padding: 20px; margin-bottom: 24px; } }
+.shopify-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.shopify-panel-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.shopify-metric-group { margin-bottom: 14px; }
+.shopify-metric-group:last-child { margin-bottom: 0; }
+.shopify-group-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--sub); margin-bottom: 8px;
+}
+.shopify-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+@media (min-width: 480px) { .shopify-metrics { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 768px) { .shopify-metrics { grid-template-columns: repeat(4, 1fr); } }
+.shopify-metric {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.shopify-metric-label {
+  font-size: 10px; font-weight: 600; color: var(--sub);
+  letter-spacing: 0.04em; margin-bottom: 3px;
+}
+.shopify-metric-value {
+  font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.2;
+}
+.shopify-metric-value.negative { color: var(--accent); }
+
 /* ─── Chart ─────────────────────────────────────────────────────────────────── */
 .chart-card {
   background: var(--surface);
@@ -492,6 +537,22 @@ header {
     <!-- populated by JS -->
   </div>
 
+  <!-- Shopify Analytics Panel -->
+  <div class="shopify-panel" id="shopifyPanel">
+    <div class="shopify-panel-header">
+      <span class="shopify-panel-title">Shopify Analytics</span>
+      <span class="badge badge-live">Live</span>
+    </div>
+    <div class="shopify-metric-group">
+      <div class="shopify-group-label">Sales Breakdown</div>
+      <div class="shopify-metrics" id="shopifySalesMetrics"></div>
+    </div>
+    <div class="shopify-metric-group">
+      <div class="shopify-group-label">Store Performance</div>
+      <div class="shopify-metrics" id="shopifyPerfMetrics"></div>
+    </div>
+  </div>
+
   <!-- Trend Chart -->
   <div class="chart-card">
     <div class="chart-header">
@@ -669,6 +730,47 @@ function renderSummary(data) {
       <div class="channel-orders">${ch.orders} order${ch.orders !== 1 ? 's' : ''}</div>
     </div>
   `).join('');
+
+  // Shopify analytics panel
+  const sd = data.shopifyDetail;
+  const panel = document.getElementById('shopifyPanel');
+  if (sd) {
+    const rm = (v) => v != null ? formatMYR(v) : '—';
+    const pct = (v) => v != null ? v.toFixed(2) + '%' : '—';
+    const num = (v) => v != null ? v.toLocaleString() : '—';
+
+    document.getElementById('shopifySalesMetrics').innerHTML = [
+      { label: 'Gross Sales',    value: rm(sd.grossSales) },
+      { label: 'Discounts',      value: sd.discounts != null ? '−' + formatMYR(Math.abs(sd.discounts)) : '—', neg: sd.discounts < 0 },
+      { label: 'Returns',        value: sd.returns != null ? '−' + formatMYR(Math.abs(sd.returns)) : '—',    neg: sd.returns < 0 },
+      { label: 'Net Sales',      value: rm(sd.netSales) },
+      { label: 'Shipping',       value: rm(sd.shippingCharges) },
+      { label: 'Taxes',          value: rm(sd.taxes) },
+    ].map(m => `
+      <div class="shopify-metric">
+        <div class="shopify-metric-label">${m.label}</div>
+        <div class="shopify-metric-value${m.neg ? ' negative' : ''}">${m.value}</div>
+      </div>
+    `).join('');
+
+    document.getElementById('shopifyPerfMetrics').innerHTML = [
+      { label: 'Sessions',          value: num(sd.sessions) },
+      { label: 'Conversion Rate',   value: pct(sd.conversionRate) },
+      { label: 'Avg Order Value',   value: rm(sd.averageOrderValue) },
+      { label: 'Returning Rate',    value: pct(sd.returningCustomerRate) },
+      { label: 'Orders Placed',     value: num(sd.orders) },
+      { label: 'Orders Fulfilled',  value: num(sd.ordersFulfilled) },
+    ].map(m => `
+      <div class="shopify-metric">
+        <div class="shopify-metric-label">${m.label}</div>
+        <div class="shopify-metric-value">${m.value}</div>
+      </div>
+    `).join('');
+
+    panel.classList.add('visible');
+  } else {
+    panel.classList.remove('visible');
+  }
 }
 
 /* ─── Trend Chart ────────────────────────────────────────────────────────────── */

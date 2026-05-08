@@ -38,6 +38,17 @@ async function init() {
     )
   `);
 
+  // Shopify extended metrics columns
+  const shopifyCols = [
+    'gross_sales REAL', 'discounts REAL', 'returns REAL', 'net_sales REAL',
+    'shipping_charges REAL', 'return_fees REAL', 'taxes REAL',
+    'orders_fulfilled INTEGER', 'avg_order_value REAL',
+    'sessions INTEGER', 'conversion_rate REAL', 'returning_customer_rate REAL'
+  ];
+  for (const col of shopifyCols) {
+    try { await db.execute(`ALTER TABLE cached_data ADD COLUMN ${col}`); } catch (_) {}
+  }
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,

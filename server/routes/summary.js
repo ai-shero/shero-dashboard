@@ -65,7 +65,8 @@ router.get('/', async (req, res) => {
     start,
     end,
     total: { revenue: +totalRevenue.toFixed(2), orders: totalOrders },
-    channels
+    channels,
+    shopifyDetail: shopify?.live ? shopify : null,
   });
 });
 
