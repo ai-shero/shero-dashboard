@@ -71,6 +71,49 @@ router.get('/', async (req, res) => {
   });
 });
 
+// GET /api/summary/daily?days=30  — per-date, per-channel breakdown
+router.get('/daily', async (req, res) => {
+  const days = Math.min(parseInt(req.query.days || '30'), 90);
+  const myt = new Date(Date.now() + 8 * 3600000);
+  const endDate = new Date(myt.getTime() - 86400000).toISOString().slice(0, 10); // yesterday
+  const startDate = new Date(new Date(endDate).getTime() - (days - 1) * 86400000).toISOString().slice(0, 10);
+
+  const result = await db.execute({
+    sql: `SELECT entry_date, channel, SUM(revenue) as revenue, SUM(orders) as orders
+          FROM (
+            SELECT entry_date, 'shopify' as channel, revenue, orders FROM cached_data
+            UNION ALL
+            SELECT entry_date, channel, revenue, orders FROM manual_entries
+          )
+          WHERE entry_date >= ? AND entry_date <= ?
+          GROUP BY entry_date, channel
+          ORDER BY entry_date DESC, channel`,
+    args: [startDate, endDate]
+  });
+
+  const CHANNELS = ['shopify', 'shopee', 'tiktok', 'lazada', 'pos', 'parkson', 'watsons'];
+  const byDate = {};
+  result.rows.forEach(r => {
+    if (!byDate[r.entry_date]) byDate[r.entry_date] = {};
+    byDate[r.entry_date][r.channel] = { revenue: +r.revenue, orders: +r.orders };
+  });
+
+  const rows = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(new Date(endDate).getTime() - i * 86400000).toISOString().slice(0, 10);
+    const byChannel = byDate[d] || {};
+    const totalRevenue = CHANNELS.reduce((s, c) => s + (byChannel[c]?.revenue || 0), 0);
+    const totalOrders  = CHANNELS.reduce((s, c) => s + (byChannel[c]?.orders  || 0), 0);
+    rows.push({
+      date: d,
+      total: { revenue: +totalRevenue.toFixed(2), orders: totalOrders },
+      channels: CHANNELS.map(c => ({ id: c, revenue: byChannel[c]?.revenue || 0, orders: byChannel[c]?.orders || 0 }))
+    });
+  }
+
+  res.json({ rows });
+});
+
 // GET /api/summary/trend?days=30  — daily totals for sparkline/chart
 router.get('/trend', async (req, res) => {
   const days = Math.min(parseInt(req.query.days || '30'), 90);
