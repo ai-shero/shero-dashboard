@@ -3,7 +3,7 @@
  * Runs all scrapers, stores results in cached_data table.
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
-const { db } = require('../server/db');
+const { db, init } = require('../server/db');
 
 const SCRAPERS = [
   { id: 'shopify', scraper: require('./shopify') },
@@ -47,8 +47,10 @@ async function upsertCache(channel, date, result) {
 }
 
 async function runAll(date) {
-  const myt   = new Date(Date.now() + 8 * 3600000);
-  const today = date || myt.toISOString().slice(0, 10);
+  await init();
+  const myt       = new Date(Date.now() + 8 * 3600000);
+  const yesterday = new Date(+myt - 86400000).toISOString().slice(0, 10);
+  const today     = date || yesterday;
   console.log(`[Scrape] Running for ${today}`);
 
   for (const { id, scraper } of SCRAPERS) {

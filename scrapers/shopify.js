@@ -85,7 +85,7 @@ async function scrape(date) {
 
   const page = await context.newPage();
 
-  await page.goto(`${STORE_URL}/analytics`, {
+  await page.goto(`${STORE_URL}/analytics?since=${date}&until=${date}`, {
     waitUntil: 'domcontentloaded',
     timeout:   30000,
   });
