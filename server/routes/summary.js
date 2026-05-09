@@ -9,8 +9,9 @@ function getDateRange(period) {
   // MYT = UTC+8
   const myt = new Date(now.getTime() + 8 * 3600000);
   const today = myt.toISOString().slice(0, 10);
+  const yesterday = new Date(myt.getTime() - 86400000).toISOString().slice(0, 10);
 
-  if (period === 'today') return { start: today, end: today };
+  if (period === 'today') return { start: yesterday, end: yesterday };
   if (period === 'mtd') return { start: today.slice(0, 8) + '01', end: today };
   if (period === 'ytd') return { start: today.slice(0, 5) + '01-01', end: today };
   // custom: period = "2026-05-01:2026-05-07"
