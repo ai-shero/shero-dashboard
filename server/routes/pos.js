@@ -35,5 +35,6 @@ router.get('/', async (req, res) => {
     console.error('[POS] DB error:', err.message);
   }
   res.json({ channel: 'pos', revenue: 0, orders: 0, live: false });
+});
 
 module.exports = router;

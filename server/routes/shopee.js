@@ -19,5 +19,6 @@ router.get('/', async (req, res) => {
   }
 
   res.json({ channel: 'shopee', revenue: 0, orders: 0, live: false });
+});
 
 module.exports = router;
