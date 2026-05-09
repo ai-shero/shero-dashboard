@@ -2,6 +2,8 @@ require('dotenv').config();
 const { createClient } = require('@libsql/client');
 const path = require('path');
 
+if (process.env.SSL_INSECURE === 'true') process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 let db;
 
 if (process.env.TURSO_URL && process.env.TURSO_TOKEN) {
