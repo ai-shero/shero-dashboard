@@ -17,6 +17,12 @@ async function setSetting(key, value) {
   });
 }
 
+// GET /api/settings/scrape-status
+router.get('/scrape-status', async (req, res) => {
+  const val = await getSetting('last_scrape');
+  res.json(val ? JSON.parse(val) : null);
+});
+
 // GET /api/settings — return non-sensitive settings (masked tokens)
 router.get('/', async (req, res) => {
   const keys = ['shopify_store', 'shopify_client_secret', 'pos_api_url'];

@@ -27,20 +27,6 @@ app.use('/api/pos', require('./routes/pos'));
 app.use('/api/shopee', require('./routes/shopee'));
 app.use('/api/manual', require('./routes/manual'));
 
-// Shopify OAuth callback — Shopify redirects to the App URL (root) with ?code=&state=
-// This must be BEFORE the static file handler
-app.get('/', async (req, res, next) => {
-  const { code, state } = req.query;
-  if (!code || !state) return next(); // normal homepage request
-
-  // Hand off to shopify router's inline handler
-  const { handleOAuthCallback } = require('./routes/shopify');
-  if (handleOAuthCallback) {
-    return handleOAuthCallback(req, res);
-  }
-  next();
-});
-
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'client', 'public', 'index.html'));
 });
@@ -80,6 +66,18 @@ function scheduleMidnightScrape() {
       try {
         const { runAll } = require('../scrapers/run');
         await runAll();
+        // Save last scrape metadata for dashboard status badge
+        const { db } = require('./db');
+        const { setSetting } = require('./routes/settings');
+        const r = await db.execute('SELECT entry_date, revenue, orders FROM cached_data ORDER BY entry_date DESC LIMIT 1');
+        if (r.rows[0]) {
+          await setSetting('last_scrape', JSON.stringify({
+            date: r.rows[0].entry_date,
+            revenue: +r.rows[0].revenue,
+            orders: +r.rows[0].orders,
+            scraped_at: new Date().toISOString()
+          }));
+        }
       } catch (e) {
         console.error('[Cron] Scrape failed:', e.message);
       }
