@@ -71,28 +71,29 @@ async function login() {
 
 /* ─── date range picker ──────────────────────────────────────────────────── */
 async function selectDateRange(page, targetDate) {
-  const myt = new Date(Date.now() + 8 * 3600000);
-  const yesterday = new Date(+myt - 86400000).toISOString().slice(0, 10);
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const [year, month, day] = targetDate.split('-').map(Number);
+  const monthName = MONTHS[month - 1];
 
-  // Wait for the date control button (analytics component ready)
+  // Wait for RM values — analytics component only mounts after data loads
   try {
     await page.waitForFunction(() => {
-      function find(root) {
-        for (const el of root.querySelectorAll('*')) {
-          if (el.getAttribute?.('aria-label')?.startsWith('Date control:')) return true;
-          if (el.shadowRoot && find(el.shadowRoot)) return true;
-        }
-        return false;
+      function t(root) {
+        const texts = [];
+        const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        let n; while ((n = w.nextNode())) { const v = n.nodeValue.trim(); if (v) texts.push(v); }
+        for (const el of root.querySelectorAll('*')) { if (el.shadowRoot) texts.push(...t(el.shadowRoot)); }
+        return texts;
       }
-      return find(document.body);
-    }, {}, { timeout: 20000 });
+      return t(document.body).some(x => /^-?RM\s*[\d,]+\.\d{2}$/.test(x));
+    }, {}, { timeout: 30000 });
   } catch (_) {
-    console.warn('[Shopify] Date control button not found — skipping date selection');
+    console.warn('[Shopify] Analytics not loaded — skipping date selection');
     return;
   }
 
-  // Click the date control button
-  await page.evaluate(() => {
+  // Click the date control button to open the calendar
+  const opened = await page.evaluate(() => {
     function click(root) {
       for (const el of root.querySelectorAll('*')) {
         if (el.getAttribute?.('aria-label')?.startsWith('Date control:')) { el.click(); return true; }
@@ -100,81 +101,85 @@ async function selectDateRange(page, targetDate) {
       }
       return false;
     }
-    click(document.body);
+    return click(document.body);
   });
+  if (!opened) { console.warn('[Shopify] Date control button not found'); return; }
   await page.waitForTimeout(1200);
 
-  if (targetDate === yesterday) {
+  // Click the target day — match ariaLabel "[DayOfWeek] [Month] [Day] [Year]"
+  // The calendar shows two months simultaneously; use month name + year to avoid
+  // clicking the same day number in the adjacent month.
+  const dayFragment = `${monthName} ${day} ${year}`;
+  const clickedDay = await page.evaluate((fragment) => {
+    function click(root) {
+      for (const el of root.querySelectorAll('button')) {
+        const a = el.getAttribute('aria-label') || '';
+        const cls = el.className || '';
+        if (cls.includes('DatePicker__Day') && a.includes(fragment) && !el.disabled) {
+          el.click(); return a;
+        }
+      }
+      for (const el of root.querySelectorAll('*')) {
+        if (el.shadowRoot) { const r = click(el.shadowRoot); if (r) return r; }
+      }
+      return null;
+    }
+    return click(document.body);
+  }, dayFragment);
+
+  if (!clickedDay) {
+    console.warn(`[Shopify] Day button for "${dayFragment}" not found — calendar may need navigation`);
+    // Dismiss picker and proceed with whatever date is loaded
     await page.evaluate(() => {
       function click(root) {
+        for (const el of root.querySelectorAll('button')) {
+          if (el.textContent?.trim() === 'Cancel') { el.click(); return true; }
+        }
         for (const el of root.querySelectorAll('*')) {
-          const role = el.getAttribute?.('role');
-          if (el.textContent?.trim() === 'Yesterday' &&
-              (el.tagName === 'BUTTON' || role === 'option' || role === 'menuitem')) {
-            el.click(); return true;
-          }
           if (el.shadowRoot && click(el.shadowRoot)) return true;
         }
         return false;
       }
       click(document.body);
     });
-  } else {
-    // Custom range — find and click "Custom" / "Custom range" option
-    const found = await page.evaluate(() => {
-      function click(root) {
-        for (const el of root.querySelectorAll('*')) {
-          const t = el.textContent?.trim().toLowerCase();
-          const role = el.getAttribute?.('role');
-          if (/^custom/.test(t) && (el.tagName === 'BUTTON' || role === 'option' || role === 'menuitem')) {
-            el.click(); return true;
-          }
-          if (el.shadowRoot && click(el.shadowRoot)) return true;
-        }
-        return false;
-      }
-      return click(document.body);
-    });
-
-    if (found) {
-      await page.waitForTimeout(800);
-      // Fill date inputs using React-compatible value setter
-      await page.evaluate((d) => {
-        const inputs = [];
-        function gather(root) {
-          for (const el of root.querySelectorAll('input')) inputs.push(el);
-          for (const el of root.querySelectorAll('*')) {
-            if (el.shadowRoot) gather(el.shadowRoot);
-          }
-        }
-        gather(document.body);
-        const dateLike = inputs.filter(i => i.type === 'date' || i.type === 'text');
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-        for (const inp of dateLike.slice(0, 2)) {
-          setter.call(inp, d);
-          inp.dispatchEvent(new Event('input',  { bubbles: true }));
-          inp.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      }, targetDate);
-      await page.waitForTimeout(500);
-      // Apply
-      await page.evaluate(() => {
-        function click(root) {
-          for (const el of root.querySelectorAll('*')) {
-            const t = el.textContent?.trim().toLowerCase();
-            if ((t === 'apply' || t === 'update') && el.tagName === 'BUTTON') { el.click(); return true; }
-            if (el.shadowRoot && click(el.shadowRoot)) return true;
-          }
-          return false;
-        }
-        click(document.body);
-      });
-    } else {
-      console.warn(`[Shopify] Custom range option not found — data may be for wrong date`);
-    }
+    return;
   }
+  await page.waitForTimeout(500);
 
-  await page.waitForTimeout(1500);
+  // Click the same day again to set end = start (single-day range)
+  await page.evaluate((fragment) => {
+    function click(root) {
+      for (const el of root.querySelectorAll('button')) {
+        const a = el.getAttribute('aria-label') || '';
+        const cls = el.className || '';
+        if (cls.includes('DatePicker__Day') && a.includes(fragment) && !el.disabled) {
+          el.click(); return true;
+        }
+      }
+      for (const el of root.querySelectorAll('*')) {
+        if (el.shadowRoot && click(el.shadowRoot)) return true;
+      }
+      return false;
+    }
+    click(document.body);
+  }, dayFragment);
+  await page.waitForTimeout(400);
+
+  // Click Apply
+  await page.evaluate(() => {
+    function click(root) {
+      for (const el of root.querySelectorAll('button')) {
+        if (el.textContent?.trim() === 'Apply') { el.click(); return true; }
+      }
+      for (const el of root.querySelectorAll('*')) {
+        if (el.shadowRoot && click(el.shadowRoot)) return true;
+      }
+      return false;
+    }
+    click(document.body);
+  });
+
+  await page.waitForTimeout(2000);
 }
 
 /* ─── scrape ─────────────────────────────────────────────────────────────── */
