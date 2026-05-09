@@ -18,14 +18,6 @@ router.get('/', async (req, res) => {
     }
   }
 
-  const mock = generateMock(start, end, 8500, 110);
-  res.json({ ...mock, channel: 'shopee', live: false, note: 'mock — add SHEETS_CREDENTIALS to .env' });
-});
-
-function generateMock(start, end, baseRevenue, baseOrders) {
-  const days = Math.max(1, (new Date(end) - new Date(start)) / 86400000 + 1);
-  const v = () => 0.7 + Math.random() * 0.6;
-  return { revenue: +(baseRevenue * days * v() / 30).toFixed(2), orders: Math.round(baseOrders * days * v() / 30) };
-}
+  res.json({ channel: 'shopee', revenue: 0, orders: 0, live: false });
 
 module.exports = router;

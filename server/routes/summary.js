@@ -77,10 +77,13 @@ router.get('/trend', async (req, res) => {
   const endDate = myt.toISOString().slice(0, 10);
   const startDate = new Date(myt - (days - 1) * 86400000).toISOString().slice(0, 10);
 
-  // For manual channels, pull from DB
   const result = await db.execute({
     sql: `SELECT entry_date, SUM(revenue) as revenue, SUM(orders) as orders
-          FROM manual_entries
+          FROM (
+            SELECT entry_date, revenue, orders FROM cached_data
+            UNION ALL
+            SELECT entry_date, revenue, orders FROM manual_entries
+          )
           WHERE entry_date >= ? AND entry_date <= ?
           GROUP BY entry_date ORDER BY entry_date`,
     args: [startDate, endDate]
