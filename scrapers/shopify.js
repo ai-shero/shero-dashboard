@@ -69,6 +69,114 @@ async function login() {
   await browser.close();
 }
 
+/* ─── date range picker ──────────────────────────────────────────────────── */
+async function selectDateRange(page, targetDate) {
+  const myt = new Date(Date.now() + 8 * 3600000);
+  const yesterday = new Date(+myt - 86400000).toISOString().slice(0, 10);
+
+  // Wait for the date control button (analytics component ready)
+  try {
+    await page.waitForFunction(() => {
+      function find(root) {
+        for (const el of root.querySelectorAll('*')) {
+          if (el.getAttribute?.('aria-label')?.startsWith('Date control:')) return true;
+          if (el.shadowRoot && find(el.shadowRoot)) return true;
+        }
+        return false;
+      }
+      return find(document.body);
+    }, {}, { timeout: 20000 });
+  } catch (_) {
+    console.warn('[Shopify] Date control button not found — skipping date selection');
+    return;
+  }
+
+  // Click the date control button
+  await page.evaluate(() => {
+    function click(root) {
+      for (const el of root.querySelectorAll('*')) {
+        if (el.getAttribute?.('aria-label')?.startsWith('Date control:')) { el.click(); return true; }
+        if (el.shadowRoot && click(el.shadowRoot)) return true;
+      }
+      return false;
+    }
+    click(document.body);
+  });
+  await page.waitForTimeout(1200);
+
+  if (targetDate === yesterday) {
+    await page.evaluate(() => {
+      function click(root) {
+        for (const el of root.querySelectorAll('*')) {
+          const role = el.getAttribute?.('role');
+          if (el.textContent?.trim() === 'Yesterday' &&
+              (el.tagName === 'BUTTON' || role === 'option' || role === 'menuitem')) {
+            el.click(); return true;
+          }
+          if (el.shadowRoot && click(el.shadowRoot)) return true;
+        }
+        return false;
+      }
+      click(document.body);
+    });
+  } else {
+    // Custom range — find and click "Custom" / "Custom range" option
+    const found = await page.evaluate(() => {
+      function click(root) {
+        for (const el of root.querySelectorAll('*')) {
+          const t = el.textContent?.trim().toLowerCase();
+          const role = el.getAttribute?.('role');
+          if (/^custom/.test(t) && (el.tagName === 'BUTTON' || role === 'option' || role === 'menuitem')) {
+            el.click(); return true;
+          }
+          if (el.shadowRoot && click(el.shadowRoot)) return true;
+        }
+        return false;
+      }
+      return click(document.body);
+    });
+
+    if (found) {
+      await page.waitForTimeout(800);
+      // Fill date inputs using React-compatible value setter
+      await page.evaluate((d) => {
+        const inputs = [];
+        function gather(root) {
+          for (const el of root.querySelectorAll('input')) inputs.push(el);
+          for (const el of root.querySelectorAll('*')) {
+            if (el.shadowRoot) gather(el.shadowRoot);
+          }
+        }
+        gather(document.body);
+        const dateLike = inputs.filter(i => i.type === 'date' || i.type === 'text');
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        for (const inp of dateLike.slice(0, 2)) {
+          setter.call(inp, d);
+          inp.dispatchEvent(new Event('input',  { bubbles: true }));
+          inp.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }, targetDate);
+      await page.waitForTimeout(500);
+      // Apply
+      await page.evaluate(() => {
+        function click(root) {
+          for (const el of root.querySelectorAll('*')) {
+            const t = el.textContent?.trim().toLowerCase();
+            if ((t === 'apply' || t === 'update') && el.tagName === 'BUTTON') { el.click(); return true; }
+            if (el.shadowRoot && click(el.shadowRoot)) return true;
+          }
+          return false;
+        }
+        click(document.body);
+      });
+    } else {
+      console.warn(`[Shopify] Custom range option not found — data may be for wrong date`);
+    }
+  }
+
+  await page.waitForTimeout(1500);
+}
+
 /* ─── scrape ─────────────────────────────────────────────────────────────── */
 async function scrape(date) {
   if (!fs.existsSync(SESSION_FILE)) {
@@ -85,7 +193,7 @@ async function scrape(date) {
 
   const page = await context.newPage();
 
-  await page.goto(`${STORE_URL}/analytics?since=${date}&until=${date}`, {
+  await page.goto(`${STORE_URL}/analytics`, {
     waitUntil: 'domcontentloaded',
     timeout:   30000,
   });
@@ -94,6 +202,9 @@ async function scrape(date) {
     await browser.close();
     throw new Error('SESSION_EXPIRED');
   }
+
+  // Select the target date via the date picker UI
+  await selectDateRange(page, date);
 
   // Wait for analytics breakdown to render in shadow DOM (up to 25s)
   try {

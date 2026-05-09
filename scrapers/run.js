@@ -80,4 +80,4 @@ async function runAll(date) {
 
 module.exports = { runAll };
 
-if (require.main === module) runAll().catch(console.error);
+if (require.main === module) runAll(process.argv[2]).catch(console.error);
