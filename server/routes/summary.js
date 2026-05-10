@@ -83,7 +83,7 @@ router.get('/daily', async (req, res) => {
           FROM (
             SELECT entry_date, 'shopify' as channel, revenue, orders FROM cached_data
             UNION ALL
-            SELECT entry_date, channel, revenue, orders FROM manual_entries
+            SELECT entry_date, channel, revenue, orders FROM manual_entries WHERE channel != 'shopify'
           )
           WHERE entry_date >= ? AND entry_date <= ?
           GROUP BY entry_date, channel
@@ -126,7 +126,7 @@ router.get('/trend', async (req, res) => {
           FROM (
             SELECT entry_date, revenue, orders FROM cached_data
             UNION ALL
-            SELECT entry_date, revenue, orders FROM manual_entries
+            SELECT entry_date, revenue, orders FROM manual_entries WHERE channel != 'shopify'
           )
           WHERE entry_date >= ? AND entry_date <= ?
           GROUP BY entry_date ORDER BY entry_date`,
