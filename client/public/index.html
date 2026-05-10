@@ -125,9 +125,9 @@ header {
 .settings-btn:hover { border-color: var(--accent); color: var(--accent); }
 .settings-section { margin-bottom: 18px; }
 .settings-section-title {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--sub);
   margin-bottom: 10px;
@@ -204,9 +204,9 @@ header {
 }
 .kpi-card.accent { border-top: 2px solid var(--accent); }
 .kpi-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--sub);
   margin-bottom: 6px;
@@ -227,9 +227,9 @@ header {
 
 /* ─── Channel Grid ──────────────────────────────────────────────────────────── */
 .section-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--sub);
   margin-bottom: 12px;
@@ -257,17 +257,17 @@ header {
 .channel-card:hover { transform: translateY(-1px); border-color: var(--accent); }
 .channel-header { display: flex; align-items: center; justify-content: space-between; }
 .channel-name {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--sub);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
 }
 .badge {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 20px;
 }
 .badge-live { background: rgba(52,199,89,.15); color: var(--green); }
@@ -279,7 +279,7 @@ header {
   color: var(--text);
 }
 .channel-orders {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--sub);
 }
 
@@ -304,7 +304,7 @@ header {
 .shopify-metric-group { margin-bottom: 14px; }
 .shopify-metric-group:last-child { margin-bottom: 0; }
 .shopify-group-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--sub); margin-bottom: 8px;
 }
 .shopify-metrics {
@@ -320,8 +320,8 @@ header {
   padding: 10px 12px;
 }
 .shopify-metric-label {
-  font-size: 10px; font-weight: 600; color: var(--sub);
-  letter-spacing: 0.04em; margin-bottom: 3px;
+  font-size: 11px; font-weight: 600; color: var(--sub);
+  letter-spacing: 0.03em; margin-bottom: 3px;
 }
 .shopify-metric-value {
   font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.2;
@@ -331,38 +331,50 @@ header {
 /* ─── Daily Table ───────────────────────────────────────────────────────────── */
 .daily-view { display: none; }
 .daily-view.visible { display: block; }
-.daily-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 24px; }
+.daily-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 24px;
+  max-height: 520px;
+  overflow-y: auto;
+}
 .daily-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
-  min-width: 640px;
+  font-size: 13px;
+  min-width: 720px;
+}
+.daily-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 .daily-table th {
   text-align: right;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--sub);
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.02em;
+  color: var(--text);
+  padding: 12px 16px;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
   white-space: nowrap;
 }
 .daily-table th:first-child { text-align: left; }
 .daily-table td {
   text-align: right;
-  padding: 9px 12px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--border);
   color: var(--text);
   white-space: nowrap;
+  font-size: 13px;
 }
-.daily-table td:first-child { text-align: left; font-weight: 600; color: var(--sub); }
+.daily-table td:first-child { text-align: left; font-weight: 600; color: var(--sub); font-size: 13px; }
 .daily-table tr:last-child td { border-bottom: none; }
-.daily-table tr:hover td { background: var(--bg); }
+.daily-table tbody tr:hover td { background: var(--bg); }
 .daily-table .zero { color: var(--border); }
 .daily-table .total-col { font-weight: 700; color: var(--accent); }
-.daily-table .orders-sub { font-size: 10px; color: var(--sub); display: block; }
+.daily-table .orders-sub { font-size: 11px; color: var(--sub); display: block; margin-top: 1px; }
 
 /* ─── Chart ─────────────────────────────────────────────────────────────────── */
 .chart-card {
