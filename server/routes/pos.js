@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
 
   if (posUrl) {
     try {
-      const url = `${posUrl.replace(/\/$/, '')}/api/sales-summary?start=${start}&end=${end}`;
+      const url = `${posUrl.replace(/\/$/, '')}/api/sales/summary?start=${start}&end=${end}`;
       const resp = await apiFetch(url);
       if (!resp.ok) throw new Error(`POS API ${resp.status}`);
       const data = await resp.json();
