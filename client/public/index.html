@@ -4,566 +4,484 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHERO OPS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,700;1,8..60,400;1,8..60,500&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-/* ─── Reset & Base ─────────────────────────────────────────────────────────── */
+/* ─── Reset ──────────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
 :root {
-  --bg:       #f5f5f7;
-  --surface:  #ffffff;
-  --border:   #e8e8e8;
-  --text:     #1d1d1f;
-  --sub:      #86868b;
-  --accent:   #e63946;
-  --accent-d: #c0303b;
-  --green:    #34c759;
-  --shadow:   0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
-  --radius:   12px;
+  --bg:         #f7f4ee;
+  --paper:      #ffffff;
+  --ink:        #15140f;
+  --sub:        #6c6657;
+  --border:     #e3ddcd;
+  --accent:     #a4172b;
+  --accent-d:   #8b1226;
+  --accent-deep:#5a0f1c;
+  --green:      #34c759;
+  --serif:      'Source Serif 4', Georgia, serif;
+  --mono:       'IBM Plex Mono', ui-monospace, monospace;
+  --sans:       -apple-system, 'Inter', BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --transition: 0.2s ease;
 }
 [data-theme="dark"] {
-  --bg:      #1a1a1a;
-  --surface: #242424;
-  --border:  #333333;
-  --text:    #f5f5f5;
-  --sub:     #86868b;
-  --shadow:  0 1px 3px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.2);
+  --bg:     #1a1814;
+  --paper:  #211f1a;
+  --ink:    #f0ebe0;
+  --sub:    #9a9080;
+  --border: #3a342a;
 }
+
 html { font-size: 16px; }
 body {
   background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, 'Inter', BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--ink);
+  font-family: var(--sans);
   line-height: 1.5;
   min-height: 100vh;
   transition: background var(--transition), color var(--transition);
 }
 
-/* ─── Layout ────────────────────────────────────────────────────────────────── */
-.app { max-width: 1200px; margin: 0 auto; padding: 24px 16px 80px; }
-@media (min-width: 640px) { .app { padding: 32px 24px 64px; } }
-
-/* ─── Header ────────────────────────────────────────────────────────────────── */
-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-@media (min-width: 640px) { header { margin-bottom: 28px; } }
-.header-left { display: flex; align-items: center; gap: 12px; }
-.logo {
-  font-size: 13px;
-  font-weight: 700;
+/* ─── Sticky Header ──────────────────────────────────────────────────────────── */
+.site-header {
+  position: sticky; top: 0; z-index: 30;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  display: flex; align-items: center; gap: 16px;
+  height: 52px;
+  font-family: var(--mono);
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent);
+  transition: background var(--transition), border-color var(--transition);
 }
-.header-subtitle {
-  font-size: 12px;
-  color: var(--sub);
-  letter-spacing: 0.04em;
-}
-.header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+@media (min-width: 768px) { .site-header { padding: 0 48px; gap: 24px; } }
 
-/* ─── Period Switcher ───────────────────────────────────────────────────────── */
-.period-tabs {
-  display: flex;
-  background: var(--border);
-  border-radius: 8px;
-  padding: 3px;
-  gap: 2px;
-}
-[data-theme="dark"] .period-tabs { background: var(--border); }
+.header-brand { font-weight: 700; color: var(--ink); letter-spacing: 0.2em; white-space: nowrap; }
+.header-issue  { color: var(--sub); display: none; }
+@media (min-width: 640px) { .header-issue { display: block; } }
+
+.period-tabs { display: flex; align-items: center; gap: 0; border-left: 1px solid var(--border); padding-left: 16px; }
+@media (min-width: 768px) { .period-tabs { padding-left: 24px; } }
 .period-tab {
-  border: none;
-  background: transparent;
-  color: var(--sub);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  padding: 5px 10px;
-  border-radius: 6px;
+  border: none; background: transparent;
+  padding: 0 0 2px; margin-right: 16px;
   cursor: pointer;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--sub); font-weight: 500;
+  border-bottom: 2px solid transparent;
   transition: all var(--transition);
 }
-@media (min-width: 400px) { .period-tab { padding: 5px 14px; } }
-.period-tab.active {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 1px 3px rgba(0,0,0,.1);
-}
+@media (min-width: 480px) { .period-tab { margin-right: 20px; } }
+.period-tab:last-child { margin-right: 0; }
+.period-tab.active { color: var(--ink); font-weight: 700; border-bottom-color: var(--accent); }
 
-/* ─── Theme Toggle ──────────────────────────────────────────────────────────── */
-.theme-btn {
-  width: 36px; height: 36px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px;
-  transition: all var(--transition);
-  color: var(--text);
-}
-.theme-btn:hover { border-color: var(--accent); }
+.header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
-/* ─── Settings ───────────────────────────────────────────────────────────────── */
-.settings-btn {
-  width: 36px; height: 36px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 15px;
-  transition: all var(--transition);
-  color: var(--sub);
+.icon-btn {
+  width: 32px; height: 32px;
+  border: 1px solid var(--border); background: transparent;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; transition: all var(--transition); color: var(--ink);
 }
-.settings-btn:hover { border-color: var(--accent); color: var(--accent); }
-.settings-section { margin-bottom: 18px; }
-.settings-section-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 10px;
-}
-.connect-status {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11px; font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 20px;
-  background: rgba(52,199,89,.12);
-  color: var(--green);
-  margin-left: 8px;
-}
-.connect-status.disconnected {
-  background: rgba(134,134,139,.1);
-  color: var(--sub);
-}
-.btn-oauth {
-  width: 100%;
-  padding: 9px;
-  background: transparent;
-  border: 1px dashed var(--border);
-  border-radius: 8px;
-  color: var(--sub);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition);
-  margin-top: 8px;
-}
-.btn-oauth:hover { border-color: var(--accent); color: var(--accent); }
+.icon-btn:hover { border-color: var(--accent); }
 
-/* ─── WhatsApp Button ───────────────────────────────────────────────────────── */
 .wa-btn {
   display: flex; align-items: center; gap: 6px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-  transition: all var(--transition);
-  white-space: nowrap;
+  background: var(--accent); color: #fff; border: none;
+  padding: 7px 10px;
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  cursor: pointer; transition: background var(--transition); white-space: nowrap;
 }
-@media (min-width: 400px) { .wa-btn { padding: 8px 14px; } }
-.wa-btn .wa-label { display: none; }
-@media (min-width: 500px) { .wa-btn .wa-label { display: inline; } }
+@media (min-width: 480px) { .wa-btn { padding: 7px 14px; } }
 .wa-btn:hover { background: var(--accent-d); }
 .wa-btn.copied { background: var(--green); }
+.wa-label { display: none; }
+@media (min-width: 520px) { .wa-label { display: inline; } }
 
-/* ─── KPI Strip ─────────────────────────────────────────────────────────────── */
-.kpi-strip {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-@media (min-width: 640px) {
-  .kpi-strip { grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-}
-/* First KPI card spans full width on mobile */
-.kpi-card:first-child { grid-column: 1 / -1; }
-@media (min-width: 640px) { .kpi-card:first-child { grid-column: auto; } }
-.kpi-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px 22px;
-  box-shadow: var(--shadow);
-  transition: background var(--transition), border-color var(--transition);
-}
-.kpi-card.accent { border-top: 2px solid var(--accent); }
-.kpi-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--sub);
-  margin-bottom: 6px;
-}
-.kpi-value {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  color: var(--text);
-  line-height: 1.1;
-}
-@media (min-width: 640px) { .kpi-value { font-size: 28px; } }
-.kpi-sub {
-  font-size: 12px;
-  color: var(--sub);
-  margin-top: 4px;
-}
+/* ─── Layout ─────────────────────────────────────────────────────────────────── */
+.app { max-width: 1280px; margin: 0 auto; padding: 32px 20px 80px; }
+@media (min-width: 768px) { .app { padding: 40px 48px 80px; } }
 
-/* ─── Channel Grid ──────────────────────────────────────────────────────────── */
-.section-label {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 14px;
-}
-.channel-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 18px;
-}
-@media (min-width: 480px) { .channel-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 24px; } }
-.channel-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 14px;
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  transition: background var(--transition), border-color var(--transition), transform 0.15s ease;
-  cursor: default;
-}
-@media (min-width: 480px) { .channel-card { padding: 16px 18px; gap: 6px; } }
-.channel-card:hover { transform: translateY(-1px); border-color: var(--accent); }
-.channel-header { display: flex; align-items: center; justify-content: space-between; }
-.channel-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-}
-.badge {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: 20px;
-}
-.badge-live { background: rgba(52,199,89,.15); color: var(--green); }
-.badge-manual { background: rgba(134,134,139,.12); color: var(--sub); }
-.channel-revenue {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  color: var(--text);
-}
-.channel-orders {
-  font-size: 12px;
-  color: var(--sub);
-}
-
-/* ─── Shopify Analytics Panel ───────────────────────────────────────────────── */
-.shopify-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  box-shadow: var(--shadow);
-  margin-bottom: 18px;
-  display: none;
-  transition: background var(--transition), border-color var(--transition);
-}
-.shopify-panel.visible { display: block; }
-@media (min-width: 640px) { .shopify-panel { padding: 20px; margin-bottom: 24px; } }
-.shopify-panel-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 14px;
-}
-.shopify-panel-title { font-size: 13px; font-weight: 600; color: var(--text); }
-.shopify-metric-group { margin-bottom: 14px; }
-.shopify-metric-group:last-child { margin-bottom: 0; }
-.shopify-group-label {
-  font-size: 13px; font-weight: 600;
-  color: var(--sub); margin-bottom: 8px;
-}
-.shopify-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-@media (min-width: 480px) { .shopify-metrics { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 768px) { .shopify-metrics { grid-template-columns: repeat(4, 1fr); } }
-.shopify-metric {
-  background: var(--bg);
-  border-radius: 8px;
-  padding: 10px 12px;
-}
-.shopify-metric-label {
-  font-size: 12px; font-weight: 500; color: var(--sub);
-  margin-bottom: 3px;
-}
-.shopify-metric-value {
-  font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.2;
-}
-.shopify-metric-value.negative { color: var(--accent); }
-
-/* ─── Daily Table ───────────────────────────────────────────────────────────── */
-.daily-view { display: none; }
-.daily-view.visible { display: block; }
-.daily-table-wrap {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  margin-bottom: 24px;
-  max-height: 520px;
-  overflow-y: auto;
-}
-.daily-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  min-width: 720px;
-}
-.daily-table thead {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-}
-.daily-table th {
-  text-align: right;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--text);
-  padding: 12px 16px;
-  background: var(--bg);
-  border-bottom: 2px solid var(--border);
-  white-space: nowrap;
-}
-.daily-table th:first-child { text-align: left; }
-.daily-table td {
-  text-align: right;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text);
-  white-space: nowrap;
-  font-size: 13px;
-}
-.daily-table td:first-child { text-align: left; font-weight: 600; color: var(--sub); font-size: 13px; }
-.daily-table tr:last-child td { border-bottom: none; }
-.daily-table tbody tr:hover td { background: var(--bg); }
-.daily-table .zero { color: var(--border); }
-.daily-table .total-col { font-weight: 700; color: var(--accent); }
-.daily-table .orders-sub { font-size: 11px; color: var(--sub); display: block; margin-top: 1px; }
-
-/* ─── Chart ─────────────────────────────────────────────────────────────────── */
-.chart-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  box-shadow: var(--shadow);
-  margin-bottom: 18px;
-  transition: background var(--transition), border-color var(--transition);
-}
-@media (min-width: 640px) { .chart-card { padding: 22px; margin-bottom: 24px; } }
-.chart-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-.chart-title { font-size: 13px; font-weight: 600; color: var(--text); }
-.chart-sub { font-size: 11px; color: var(--sub); }
-.chart-wrap { position: relative; height: 200px; }
-
-/* ─── Manual Entry Modal ────────────────────────────────────────────────────── */
-.fab {
-  position: fixed;
-  bottom: 28px; right: 28px;
-  width: 48px; height: 48px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 50%;
-  font-size: 22px;
-  cursor: pointer;
-  box-shadow: 0 4px 16px rgba(230,57,70,.4);
-  display: flex; align-items: center; justify-content: center;
-  transition: all var(--transition);
-  z-index: 100;
-}
-.fab:hover { background: var(--accent-d); transform: scale(1.08); }
-
-.overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.4);
-  backdrop-filter: blur(4px);
-  z-index: 200;
-  align-items: center;
-  justify-content: center;
-}
-.overlay.open { display: flex; }
-.modal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 20px 16px;
-  width: calc(100% - 32px);
-  max-width: 440px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.2);
-  animation: modal-in 0.2s ease;
-}
-@media (min-width: 480px) { .modal { padding: 28px; width: 100%; } }
-@keyframes modal-in { from { opacity: 0; transform: translateY(12px) scale(.97); } }
-.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
-.form-row { margin-bottom: 14px; }
-.form-row label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sub); margin-bottom: 6px; }
-.form-row select,
-.form-row input {
-  width: 100%;
-  padding: 9px 12px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  font-size: 14px;
-  outline: none;
-  transition: border-color var(--transition);
-}
-.form-row select:focus,
-.form-row input:focus { border-color: var(--accent); }
-.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.modal-actions { display: flex; gap: 10px; margin-top: 20px; }
-.btn-primary {
-  flex: 1;
-  padding: 10px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--transition);
-}
-.btn-primary:hover { background: var(--accent-d); }
-.btn-secondary {
-  padding: 10px 18px;
-  background: transparent;
-  color: var(--sub);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition);
-}
-.btn-secondary:hover { border-color: var(--text); color: var(--text); }
-
-/* ─── Status & Loading ──────────────────────────────────────────────────────── */
+/* ─── Status Bar ─────────────────────────────────────────────────────────────── */
 .status-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-size: 12px;
-  color: var(--sub);
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 6px; font-size: 11px; color: var(--sub);
+  font-family: var(--mono); letter-spacing: 0.06em;
 }
 .scrape-status {
-  font-size: 11px;
-  color: var(--sub);
-  margin-bottom: 16px;
-  display: none;
+  font-size: 11px; color: var(--sub); margin-bottom: 20px; display: none;
+  font-family: var(--mono); letter-spacing: 0.04em;
 }
 .scrape-status.visible { display: block; }
 .scrape-status-dot {
-  display: inline-block;
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--green);
-  margin-right: 5px;
-  vertical-align: middle;
-  position: relative; top: -1px;
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); margin-right: 5px;
+  vertical-align: middle; position: relative; top: -1px;
 }
-.status-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--sub);
-  animation: pulse 2s infinite;
-}
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sub); animation: pulse 2s infinite; }
 .status-dot.loading { background: #ff9f0a; }
 .status-dot.ready   { background: var(--green); }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
+/* ─── Cover Section ──────────────────────────────────────────────────────────── */
+.cover-section {
+  display: grid; grid-template-columns: 1fr;
+  gap: 28px; margin-bottom: 48px; align-items: center;
+}
+@media (min-width: 860px) {
+  .cover-section { grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); gap: 52px; margin-bottom: 64px; }
+}
+
+.cover-kicker {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.24em;
+  text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 16px;
+}
+.cover-headline {
+  font-family: var(--serif); font-size: clamp(38px, 5.5vw, 76px);
+  font-weight: 700; letter-spacing: -0.035em; line-height: 0.95; margin: 0 0 22px;
+}
+.cover-headline em { font-style: italic; font-weight: 500; }
+.cover-lede {
+  font-family: var(--serif); font-size: 17px; line-height: 1.6;
+  color: var(--ink); max-width: 520px; margin-bottom: 24px; font-weight: 400;
+}
+.cover-meta {
+  display: flex; align-items: center; gap: 16px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--sub);
+  flex-wrap: wrap;
+}
+.cover-meta-divider { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+.cover-meta-label { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 2px; }
+.cover-meta-val   { color: var(--ink); font-weight: 600; }
+
+/* ─── Cover Panel ────────────────────────────────────────────────────────────── */
+.cover-panel {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  background: radial-gradient(circle at 30% 25%, #d8294a 0%, #a4172b 35%, #5a0f1c 100%);
+  overflow: hidden; color: #f7f4ee;
+  padding: 28px; display: flex; flex-direction: column; justify-content: space-between;
+}
+.cover-panel::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-image: repeating-linear-gradient(45deg,
+    rgba(255,255,255,.06) 0px, rgba(255,255,255,.06) 1px,
+    transparent 1px, transparent 6px);
+}
+.cover-panel-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em;
+  text-transform: uppercase; opacity: 0.7; font-weight: 600; position: relative; z-index: 1;
+}
+.cover-panel-rm {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em;
+  text-transform: uppercase; opacity: 0.7; margin-bottom: 4px; position: relative; z-index: 1;
+}
+.cover-panel-number {
+  font-family: var(--serif); font-size: clamp(56px, 8.5vw, 120px);
+  font-weight: 700; letter-spacing: -0.04em; line-height: 0.9;
+  font-variant-numeric: tabular-nums; position: relative; z-index: 1;
+}
+.cover-panel-sub {
+  margin-top: 12px; font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.8; position: relative; z-index: 1;
+}
+
+/* ─── TOC Strip ──────────────────────────────────────────────────────────────── */
+.toc-strip {
+  border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink);
+  padding: 16px 0; margin-bottom: 56px;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+  transition: border-color var(--transition);
+}
+@media (min-width: 640px) { .toc-strip { grid-template-columns: repeat(4, 1fr); gap: 24px; } }
+.toc-item { display: flex; gap: 10px; align-items: flex-start; }
+.toc-num {
+  font-family: var(--serif); font-size: 20px; font-weight: 700;
+  color: var(--accent); line-height: 1; letter-spacing: -0.02em; flex-shrink: 0;
+}
+.toc-title { font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+.toc-sub   { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sub); }
+
+/* ─── Section Header ─────────────────────────────────────────────────────────── */
+.section-head {
+  border-top: 2px solid var(--ink); padding-top: 18px;
+  display: grid; grid-template-columns: auto 1fr; gap: 20px;
+  align-items: baseline; margin-bottom: 28px;
+  transition: border-color var(--transition);
+}
+@media (min-width: 640px) { .section-head { gap: 28px; padding-top: 20px; margin-bottom: 32px; } }
+.section-num {
+  font-family: var(--serif); font-size: 52px; font-weight: 700;
+  color: var(--accent); line-height: 0.9; letter-spacing: -0.03em;
+}
+@media (min-width: 640px) { .section-num { font-size: 64px; } }
+.section-kicker {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.22em;
+  text-transform: uppercase; color: var(--sub); margin-bottom: 6px; font-weight: 700;
+}
+.section-title {
+  font-family: var(--serif); font-size: clamp(26px, 3.5vw, 44px);
+  font-weight: 700; letter-spacing: -0.03em; line-height: 1; margin: 0 0 10px;
+}
+.section-lede { font-family: var(--sans); font-size: 15px; color: var(--sub); line-height: 1.5; margin: 0; }
+
+/* ─── Channel Grid ───────────────────────────────────────────────────────────── */
+.channel-section { margin-bottom: 72px; }
+.channel-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+@media (min-width: 560px) { .channel-grid { gap: 16px; } }
+@media (min-width: 760px) { .channel-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; } }
+
+.channel-card {
+  background: var(--paper); border: 1px solid var(--border);
+  overflow: hidden; display: flex; flex-direction: column;
+  transition: border-color var(--transition), transform 0.15s ease, background var(--transition);
+}
+.channel-card:hover { border-color: var(--ink); transform: translateY(-1px); }
+
+.channel-card-band {
+  position: relative; aspect-ratio: 16 / 9;
+  padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between;
+  color: #fff;
+}
+@media (min-width: 560px) { .channel-card-band { padding: 14px 16px; } }
+.channel-card-band::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-image: repeating-linear-gradient(45deg,
+    rgba(255,255,255,.07) 0px, rgba(255,255,255,.07) 1px,
+    transparent 1px, transparent 6px);
+}
+.channel-band-top {
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em;
+  text-transform: uppercase; opacity: 0.85; position: relative; z-index: 1;
+}
+@media (min-width: 560px) { .channel-band-top { font-size: 10px; } }
+.channel-band-name {
+  font-family: var(--serif); font-size: 22px; font-weight: 700;
+  letter-spacing: -0.025em; line-height: 1.05; position: relative; z-index: 1;
+}
+@media (min-width: 560px) { .channel-band-name { font-size: 28px; } }
+@media (min-width: 760px) { .channel-band-name { font-size: 32px; } }
+.channel-card-body { padding: 14px 16px 16px; }
+@media (min-width: 560px) { .channel-card-body { padding: 16px 18px 18px; } }
+.channel-revenue {
+  font-family: var(--serif); font-size: 22px; font-weight: 700;
+  letter-spacing: -0.022em; font-variant-numeric: tabular-nums; color: var(--ink); margin-bottom: 2px;
+}
+@media (min-width: 560px) { .channel-revenue { font-size: 26px; } }
+.channel-meta { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; color: var(--sub); }
+
+.badge {
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 6px;
+}
+.badge-live    { background: rgba(52,199,89,.2);  color: #1a8a3a; }
+.badge-manual  { background: rgba(108,102,87,.15); color: var(--sub); }
+
+/* ─── Shopify Panel ──────────────────────────────────────────────────────────── */
+.shopify-section { margin-bottom: 72px; }
+.shopify-panel { background: var(--paper); border: 1px solid var(--border); padding: 20px; display: none; transition: background var(--transition), border-color var(--transition); }
+@media (min-width: 640px) { .shopify-panel { padding: 24px 28px; } }
+.shopify-panel.visible { display: block; }
+.shopify-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;
+}
+.shopify-panel-title {
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink);
+}
+.shopify-metric-group { margin-bottom: 16px; }
+.shopify-metric-group:last-child { margin-bottom: 0; }
+.shopify-group-label {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--sub); margin-bottom: 10px;
+}
+.shopify-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+@media (min-width: 480px) { .shopify-metrics { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 768px) { .shopify-metrics { grid-template-columns: repeat(4, 1fr); } }
+.shopify-metric { background: var(--bg); padding: 10px 12px; transition: background var(--transition); }
+.shopify-metric-label {
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--sub); margin-bottom: 3px;
+}
+.shopify-metric-value { font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.2; }
+.shopify-metric-value.negative { color: var(--accent); }
+
+/* ─── Departments / Chart ────────────────────────────────────────────────────── */
+.departments-section { margin-bottom: 72px; }
+.chart-card {
+  background: var(--paper); border: 1px solid var(--border);
+  padding: 20px; transition: background var(--transition), border-color var(--transition);
+}
+@media (min-width: 640px) { .chart-card { padding: 24px 28px; } }
+.chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.chart-title {
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink);
+}
+.chart-sub { font-family: var(--mono); font-size: 10px; color: var(--sub); letter-spacing: 0.06em; margin-top: 2px; }
+.chart-wrap { position: relative; height: 200px; }
+
+/* ─── Daily Table ────────────────────────────────────────────────────────────── */
+.daily-section { margin-bottom: 72px; }
+.daily-view { display: none; }
+.daily-view.visible { display: block; }
+.daily-table-wrap {
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  max-height: 520px; overflow-y: auto;
+  border: 1px solid var(--border);
+}
+.daily-table {
+  width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px;
+  background: var(--paper);
+}
+.daily-table thead { position: sticky; top: 0; z-index: 2; }
+.daily-table th {
+  text-align: right; font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink);
+  padding: 12px 16px; background: var(--bg); border-bottom: 2px solid var(--border); white-space: nowrap;
+}
+.daily-table th:first-child { text-align: left; }
+.daily-table td {
+  text-align: right; padding: 10px 16px; border-bottom: 1px solid var(--border);
+  color: var(--ink); white-space: nowrap; font-size: 13px; font-variant-numeric: tabular-nums;
+}
+.daily-table td:first-child { text-align: left; font-weight: 600; color: var(--sub); font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; }
+.daily-table tr:last-child td { border-bottom: none; }
+.daily-table tbody tr:hover td { background: var(--bg); }
+.daily-table .zero { color: var(--border); }
+.daily-table .total-col { font-weight: 700; color: var(--accent); font-family: var(--serif); }
+.daily-table .orders-sub { font-size: 10px; color: var(--sub); display: block; margin-top: 1px; font-family: var(--mono); }
+
+/* ─── FAB ────────────────────────────────────────────────────────────────────── */
+.fab {
+  position: fixed; bottom: 28px; right: 28px;
+  width: 48px; height: 48px; background: var(--accent); color: #fff; border: none;
+  font-size: 22px; cursor: pointer; box-shadow: 0 4px 16px rgba(164,23,43,.35);
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition); z-index: 100;
+}
+.fab:hover { background: var(--accent-d); transform: scale(1.06); }
+
+/* ─── Overlay / Modal ────────────────────────────────────────────────────────── */
+.overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(21,20,15,.5); backdrop-filter: blur(4px);
+  z-index: 200; align-items: center; justify-content: center;
+}
+.overlay.open { display: flex; }
+.modal {
+  background: var(--paper); border: 1px solid var(--border);
+  padding: 20px 16px; width: calc(100% - 32px); max-width: 440px;
+  box-shadow: 0 20px 60px rgba(21,20,15,.15); animation: modal-in 0.2s ease;
+}
+@media (min-width: 480px) { .modal { padding: 28px; width: 100%; } }
+@keyframes modal-in { from { opacity: 0; transform: translateY(12px) scale(.97); } }
+.modal-title { font-family: var(--serif); font-size: 20px; font-weight: 700; margin-bottom: 20px; letter-spacing: -0.015em; }
+.form-row { margin-bottom: 14px; }
+.form-row label {
+  display: block; font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--sub); margin-bottom: 6px;
+}
+.form-row select, .form-row input {
+  width: 100%; padding: 9px 12px; background: var(--bg); border: 1px solid var(--border);
+  color: var(--ink); font-size: 14px; font-family: var(--sans); outline: none;
+  transition: border-color var(--transition);
+}
+.form-row select:focus, .form-row input:focus { border-color: var(--accent); }
+.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+.btn-primary {
+  flex: 1; padding: 10px; background: var(--accent); color: #fff; border: none;
+  font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; cursor: pointer; transition: background var(--transition);
+}
+.btn-primary:hover { background: var(--accent-d); }
+.btn-secondary {
+  padding: 10px 18px; background: transparent; color: var(--sub);
+  border: 1px solid var(--border); font-family: var(--mono); font-size: 11px;
+  font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-secondary:hover { border-color: var(--ink); color: var(--ink); }
+
+/* ─── Settings ───────────────────────────────────────────────────────────────── */
+.settings-section { margin-bottom: 18px; }
+.settings-section-title {
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink); margin-bottom: 10px;
+}
+.connect-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+  padding: 2px 8px; background: rgba(52,199,89,.12); color: #1a8a3a;
+  margin-left: 8px; text-transform: uppercase;
+}
+.connect-status.disconnected { background: rgba(108,102,87,.1); color: var(--sub); }
+
+/* ─── Toast ──────────────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed; bottom: 88px; right: 28px;
+  background: var(--ink); color: var(--bg);
+  font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.06em;
+  padding: 10px 16px; opacity: 0; transform: translateY(8px);
+  transition: all 0.25s ease; pointer-events: none; z-index: 300;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+
+/* ─── Skeleton ───────────────────────────────────────────────────────────────── */
 .skeleton {
   background: linear-gradient(90deg, var(--border) 25%, var(--bg) 50%, var(--border) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite;
-  border-radius: 6px;
+  background-size: 200% 100%; animation: shimmer 1.4s infinite; display: block;
 }
 @keyframes shimmer { from{background-position:200% 0} to{background-position:-200% 0} }
 
-/* ─── Toast ─────────────────────────────────────────────────────────────────── */
-.toast {
-  position: fixed;
-  bottom: 88px; right: 28px;
-  background: var(--text);
-  color: var(--bg);
-  font-size: 13px;
-  font-weight: 500;
-  padding: 10px 16px;
-  border-radius: 8px;
-  opacity: 0;
-  transform: translateY(8px);
-  transition: all 0.25s ease;
-  pointer-events: none;
-  z-index: 300;
+/* ─── Colophon ───────────────────────────────────────────────────────────────── */
+.colophon {
+  border-top: 1px solid var(--ink); margin-top: 40px; padding-top: 16px;
+  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--sub);
+  transition: border-color var(--transition);
 }
-.toast.show { opacity: 1; transform: translateY(0); }
 </style>
 </head>
 <body>
-<div class="app">
 
-  <!-- Header -->
-  <header>
-    <div class="header-left">
-      <span class="logo">SHERO OPS</span>
-      <span class="header-subtitle">Sales Dashboard</span>
-    </div>
-    <div class="header-right">
-      <div class="period-tabs">
-        <button class="period-tab active" data-period="today">Yesterday</button>
-        <button class="period-tab" data-period="mtd">MTD</button>
-        <button class="period-tab" data-period="ytd">YTD</button>
-        <button class="period-tab" data-period="daily">Daily</button>
-      </div>
-      <button class="wa-btn" id="waBtn" onclick="copyWhatsApp()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-        <span class="wa-label">Copy Summary</span>
-      </button>
-      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
-      <button class="settings-btn" onclick="openSettings()" title="Settings">⚙️</button>
-    </div>
-  </header>
+<!-- ─── Sticky Header ─────────────────────────────────────────────────────────── -->
+<header class="site-header">
+  <div class="header-brand">SHERO · OPS</div>
+  <div class="header-issue">Sales Dashboard</div>
+  <nav class="period-tabs">
+    <button class="period-tab active" data-period="today">Daily</button>
+    <button class="period-tab" data-period="mtd">MTD</button>
+    <button class="period-tab" data-period="ytd">YTD</button>
+    <button class="period-tab" data-period="daily">History</button>
+  </nav>
+  <div class="header-actions">
+    <button class="wa-btn" id="waBtn" onclick="copyWhatsApp()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+      <span class="wa-label">Copy Summary</span>
+    </button>
+    <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+    <button class="icon-btn" onclick="openSettings()" title="Settings">⚙️</button>
+  </div>
+</header>
 
-  <!-- Status -->
+<!-- ─── Main ──────────────────────────────────────────────────────────────────── -->
+<main class="app">
+
+  <!-- Status (functional, low-profile) -->
   <div class="status-bar">
     <div class="status-dot loading" id="statusDot"></div>
     <span id="statusText">Loading...</span>
@@ -574,93 +492,163 @@ header {
     <span id="scrapeStatusText"></span>
   </div>
 
-  <!-- KPI Strip -->
-  <div class="kpi-strip" id="kpiStrip">
-    <div class="kpi-card accent">
-      <div class="kpi-label">Total Revenue</div>
-      <div class="kpi-value" id="kpiRevenue"><span class="skeleton" style="width:120px;height:28px;display:block;"></span></div>
-      <div class="kpi-sub" id="kpiRevenueLabel">—</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Total Orders</div>
-      <div class="kpi-value" id="kpiOrders"><span class="skeleton" style="width:80px;height:28px;display:block;"></span></div>
-      <div class="kpi-sub" id="kpiOrdersLabel">—</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Avg Order Value</div>
-      <div class="kpi-value" id="kpiAov"><span class="skeleton" style="width:90px;height:28px;display:block;"></span></div>
-      <div class="kpi-sub" id="kpiAovLabel">—</div>
-    </div>
-  </div>
+  <!-- ── Sections hidden in daily-history mode ───────────────────────────────── -->
+  <div id="kpiStrip">
 
-  <!-- Channel Cards -->
-  <div class="section-label">Channels</div>
-  <div class="channel-grid" id="channelGrid">
-    <!-- populated by JS -->
-  </div>
-
-  <!-- Shopify Analytics Panel -->
-  <div class="shopify-panel" id="shopifyPanel">
-    <div class="shopify-panel-header">
-      <span class="shopify-panel-title">Shopify Analytics</span>
-      <span class="badge badge-live">Live</span>
-    </div>
-    <div class="shopify-metric-group">
-      <div class="shopify-group-label">Sales Breakdown</div>
-      <div class="shopify-metrics" id="shopifySalesMetrics"></div>
-    </div>
-    <div class="shopify-metric-group">
-      <div class="shopify-group-label">Store Performance</div>
-      <div class="shopify-metrics" id="shopifyPerfMetrics"></div>
-    </div>
-  </div>
-
-  <!-- Daily Breakdown -->
-  <div class="daily-view" id="dailyView">
-    <div class="section-label">Daily Breakdown — last 30 days</div>
-    <div class="chart-card" style="padding:0;overflow:hidden;">
-      <div class="daily-table-wrap">
-        <table class="daily-table" id="dailyTable">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Shopify</th>
-              <th>Shopee</th>
-              <th>TikTok</th>
-              <th>Lazada</th>
-              <th>POS</th>
-              <th>Parkson</th>
-              <th>Watsons</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody id="dailyTableBody">
-            <tr><td colspan="9" style="text-align:center;padding:24px;color:var(--sub);">Loading...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Trend Chart -->
-  <div class="chart-card">
-    <div class="chart-header">
+    <!-- 01. Cover -->
+    <section class="cover-section">
       <div>
-        <div class="chart-title">30-Day Revenue Trend</div>
-        <div class="chart-sub">Manual entries only · API data coming soon</div>
+        <div class="cover-kicker" id="coverKicker">The cover story · Loading…</div>
+        <h1 class="cover-headline">
+          A quiet day,<br>
+          <em>led by</em> <span id="coverTopChannel">—</span>.
+        </h1>
+        <p class="cover-lede" id="coverLede">
+          <span class="skeleton" style="width:100%;height:17px;margin-bottom:5px;"></span>
+          <span class="skeleton" style="width:75%;height:17px;"></span>
+        </p>
+        <div class="cover-meta">
+          <div>
+            <div class="cover-meta-label">Total Revenue</div>
+            <div class="cover-meta-val" id="kpiRevenue"><span class="skeleton" style="width:80px;height:13px;display:block;"></span></div>
+          </div>
+          <div class="cover-meta-divider"></div>
+          <div>
+            <div class="cover-meta-label">Orders</div>
+            <div class="cover-meta-val" id="kpiOrders"><span class="skeleton" style="width:36px;height:13px;display:block;"></span></div>
+          </div>
+          <div class="cover-meta-divider"></div>
+          <div>
+            <div class="cover-meta-label">Avg Order</div>
+            <div class="cover-meta-val" id="kpiAov"><span class="skeleton" style="width:56px;height:13px;display:block;"></span></div>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--sub);" id="kpiRevenueLabel">—</div>
+      </div>
+
+      <div class="cover-panel">
+        <div class="cover-panel-label" id="coverPanelLabel">↘ Yesterday's revenue</div>
+        <div>
+          <div class="cover-panel-rm">RM</div>
+          <div class="cover-panel-number" id="coverPanelRevenue">
+            <span style="display:block;width:160px;height:80px;background:rgba(255,255,255,.12);"></span>
+          </div>
+          <div class="cover-panel-sub" id="coverPanelSub">— orders · — channels</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TOC Strip -->
+    <div class="toc-strip">
+      <div class="toc-item">
+        <div class="toc-num">01</div>
+        <div><div class="toc-title">Cover story</div><div class="toc-sub">Revenue in brief</div></div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">02</div>
+        <div><div class="toc-title">Channel report</div><div class="toc-sub">Storefronts, ranked</div></div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">03</div>
+        <div><div class="toc-title">Shopify detail</div><div class="toc-sub">Sales breakdown</div></div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">04</div>
+        <div><div class="toc-title">Departments</div><div class="toc-sub">30-day trend</div></div>
       </div>
     </div>
-    <div class="chart-wrap">
-      <canvas id="trendChart"></canvas>
+
+    <!-- 02. Channel Report -->
+    <section class="channel-section">
+      <div class="section-head">
+        <div class="section-num">02.</div>
+        <div>
+          <div class="section-kicker">Feature</div>
+          <h2 class="section-title">The channel report</h2>
+          <p class="section-lede">All storefronts. One brand. Ranked by revenue.</p>
+        </div>
+      </div>
+      <div class="channel-grid" id="channelGrid"><!-- populated by JS --></div>
+    </section>
+
+    <!-- 03. Shopify Analytics -->
+    <section class="shopify-section">
+      <div class="shopify-panel" id="shopifyPanel">
+        <div class="shopify-panel-header">
+          <span class="shopify-panel-title">03 · Shopify deep dive</span>
+          <span class="badge badge-live">Live</span>
+        </div>
+        <div class="shopify-metric-group">
+          <div class="shopify-group-label">Sales breakdown</div>
+          <div class="shopify-metrics" id="shopifySalesMetrics"></div>
+        </div>
+        <div class="shopify-metric-group">
+          <div class="shopify-group-label">Store performance</div>
+          <div class="shopify-metrics" id="shopifyPerfMetrics"></div>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /#kpiStrip -->
+
+  <!-- History table (daily mode) -->
+  <div class="daily-view" id="dailyView">
+    <div class="section-head">
+      <div class="section-num" style="font-size:40px;">—</div>
+      <div>
+        <div class="section-kicker">History</div>
+        <h2 class="section-title">Daily breakdown</h2>
+        <p class="section-lede">Last 30 days, all channels.</p>
+      </div>
+    </div>
+    <div class="daily-table-wrap">
+      <table class="daily-table" id="dailyTable">
+        <thead>
+          <tr>
+            <th>Date</th><th>Shopify</th><th>Shopee</th><th>TikTok</th>
+            <th>Lazada</th><th>POS</th><th>Parkson</th><th>Watsons</th><th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="dailyTableBody">
+          <tr><td colspan="9" style="text-align:center;padding:24px;color:var(--sub);">Loading...</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
-</div>
+  <!-- 04. Departments — Trend -->
+  <section class="departments-section">
+    <div class="section-head">
+      <div class="section-num">04.</div>
+      <div>
+        <div class="section-kicker">Departments</div>
+        <h2 class="section-title">30-day trend</h2>
+        <p class="section-lede">Revenue over the past month.</p>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Revenue trend</div>
+          <div class="chart-sub">Manual entries · API data coming soon</div>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+    </div>
+  </section>
+
+  <div class="colophon">
+    <div>Shero Ops · Sales Dashboard</div>
+    <div>Set in Source Serif 4 &amp; IBM Plex Mono</div>
+    <div>MYT</div>
+  </div>
+
+</main>
 
 <!-- FAB -->
 <button class="fab" onclick="openModal()" title="Add manual entry">+</button>
 
-<!-- Modal -->
+<!-- Manual Entry Modal -->
 <div class="overlay" id="overlay" onclick="closeModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">Add Manual Entry</div>
@@ -701,8 +689,7 @@ header {
 <!-- Settings Modal -->
 <div class="overlay" id="settingsOverlay" onclick="closeSettings(event)">
   <div class="modal" onclick="event.stopPropagation()" style="max-width:480px;">
-    <div class="modal-title">⚙️ Settings</div>
-
+    <div class="modal-title">Settings</div>
     <div class="settings-section">
       <div class="settings-section-title">Shopify
         <span class="connect-status disconnected" id="shopifyStatus">Disconnected</span>
@@ -712,11 +699,10 @@ header {
         <input type="text" id="sShopifyStore" placeholder="yourstore.myshopify.com">
       </div>
       <div class="form-row">
-        <label>Client Secret <span style="font-weight:400;text-transform:none;letter-spacing:0">(from Dev Dashboard → your app → Client secret)</span></label>
+        <label>Client Secret <span style="font-weight:400;text-transform:none;letter-spacing:0">(Dev Dashboard → app → Client secret)</span></label>
         <input type="text" id="sShopifyToken" placeholder="shpss_xxxxxxxx" autocomplete="off">
       </div>
     </div>
-
     <div class="settings-section">
       <div class="settings-section-title">SHERO POS API</div>
       <div class="form-row">
@@ -724,7 +710,6 @@ header {
         <input type="text" id="sPosUrl" placeholder="https://bloom-pos.onrender.com">
       </div>
     </div>
-
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeSettings()">Cancel</button>
       <button class="btn-primary" onclick="saveSettings()">Save</button>
@@ -732,22 +717,31 @@ header {
   </div>
 </div>
 
-<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
+/* ─── Channel color map ──────────────────────────────────────────────────────── */
+const CH_GRAD = {
+  shopify:  'linear-gradient(155deg,#4a9e30 0%,#2d6a1f 50%,#1a4012 100%)',
+  shopee:   'linear-gradient(155deg,#ee4d2d 0%,#c93920 50%,#8b2010 100%)',
+  tiktok:   'linear-gradient(155deg,#333 0%,#111 50%,#000 100%)',
+  lazada:   'linear-gradient(155deg,#1a1fa8 0%,#0f146d 50%,#080b40 100%)',
+  pos:      'linear-gradient(155deg,#c61f3a 0%,#a4172b 50%,#5a0f1c 100%)',
+  parkson:  'linear-gradient(155deg,#c49040 0%,#8a6530 50%,#5a4020 100%)',
+  watsons:  'linear-gradient(155deg,#0095da 0%,#0070a8 50%,#004870 100%)',
+};
+const COVER_GRAD = 'linear-gradient(155deg,#c61f3a 0%,#8b1226 45%,#4a0c18 100%)';
+
 /* ─── State ──────────────────────────────────────────────────────────────────── */
 let currentPeriod = 'today';
-let summaryData = null;
-let trendChart = null;
+let summaryData   = null;
+let trendChart    = null;
 
 /* ─── Init ───────────────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
-  // Default modal date to today
-  const today = new Date(Date.now() + 8*3600000).toISOString().slice(0, 10);
-  document.getElementById('mDate').value = today;
+  document.getElementById('mDate').value =
+    new Date(Date.now() + 8*3600000).toISOString().slice(0, 10);
 
-  // Period tabs
   document.querySelectorAll('.period-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.period-tab').forEach(b => b.classList.remove('active'));
@@ -763,20 +757,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Theme persistence
-  const saved = localStorage.getItem('shero-theme') || 'light';
-  setTheme(saved);
-
+  setTheme(localStorage.getItem('shero-theme') || 'light');
   loadSummary();
   loadTrend();
   loadScrapeStatus();
 });
 
-/* ─── Daily View ─────────────────────────────────────────────────────────────── */
+/* ─── Daily Mode ─────────────────────────────────────────────────────────────── */
 function setDailyMode(on) {
-  document.getElementById('kpiStrip').style.display    = on ? 'none' : '';
-  document.getElementById('channelGrid').style.display = on ? 'none' : '';
-  document.getElementById('shopifyPanel').style.display = on ? 'none' : '';
+  document.getElementById('kpiStrip').style.display = on ? 'none' : '';
   document.getElementById('dailyView').classList.toggle('visible', on);
 }
 
@@ -788,21 +777,18 @@ async function loadDaily() {
     const fmt = v => v > 0
       ? 'RM ' + v.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : '<span class="zero">—</span>';
-    const LABELS = { shopify: 'Shopify', shopee: 'Shopee', tiktok: 'TikTok', lazada: 'Lazada', pos: 'POS', parkson: 'Parkson', watsons: 'Watsons' };
     const rows = data.rows.filter(r => r.total.revenue > 0 || r.total.orders > 0);
     if (!rows.length) {
       tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--sub);">No data yet</td></tr>';
       return;
     }
     tbody.innerHTML = rows.map(row => {
-      const [y, m, d] = row.date.split('-');
-      const dateLabel = `${d}/${m}`;
+      const [, m, d] = row.date.split('-');
       const cells = row.channels.map(c =>
         `<td>${fmt(c.revenue)}${c.orders > 0 ? `<span class="orders-sub">${c.orders} orders</span>` : ''}</td>`
       ).join('');
       return `<tr>
-        <td>${dateLabel}</td>
-        ${cells}
+        <td>${d}/${m}</td>${cells}
         <td class="total-col">${fmt(row.total.revenue)}<span class="orders-sub">${row.total.orders} orders</span></td>
       </tr>`;
     }).join('');
@@ -816,19 +802,17 @@ async function loadScrapeStatus() {
   try {
     const data = await fetch('/api/settings/scrape-status').then(r => r.json());
     if (!data) return;
-    const el = document.getElementById('scrapeStatus');
-    const txt = document.getElementById('scrapeStatusText');
-    const rev = 'RM ' + Number(data.revenue).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const rev  = 'RM ' + Number(data.revenue).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const time = new Date(data.scraped_at).toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' });
-    txt.textContent = `Last scrape: ${data.date} · ${rev} / ${data.orders} orders · ${time} MYT`;
-    el.classList.add('visible');
+    document.getElementById('scrapeStatusText').textContent =
+      `Last scrape: ${data.date} · ${rev} / ${data.orders} orders · ${time} MYT`;
+    document.getElementById('scrapeStatus').classList.add('visible');
   } catch {}
 }
 
 /* ─── Theme ──────────────────────────────────────────────────────────────────── */
 function toggleTheme() {
-  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-  setTheme(next);
+  setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 }
 function setTheme(t) {
   document.documentElement.dataset.theme = t;
@@ -839,13 +823,12 @@ function setTheme(t) {
 
 /* ─── Summary ────────────────────────────────────────────────────────────────── */
 async function loadSummary() {
-  setStatus('loading', 'Fetching data...');
+  setStatus('loading', 'Loading...');
   try {
-    const resp = await fetch(`/api/summary?period=${currentPeriod}`);
-    summaryData = await resp.json();
+    summaryData = await fetch(`/api/summary?period=${currentPeriod}`).then(r => r.json());
     renderSummary(summaryData);
     setStatus('ready', 'Updated just now');
-  } catch (e) {
+  } catch {
     setStatus('error', 'Failed to load — retrying in 10s');
     setTimeout(loadSummary, 10000);
   }
@@ -853,69 +836,85 @@ async function loadSummary() {
 
 function renderSummary(data) {
   const { total, channels, start, end, period } = data;
+  const pLabels = { today: 'Yesterday', mtd: 'Month to date', ytd: 'Year to date' };
 
-  // Date range label
+  // Status date range
   document.getElementById('dateRange').textContent =
     period === 'today' ? formatDate(start) : `${formatDate(start)} — ${formatDate(end)}`;
 
-  // KPI
-  document.getElementById('kpiRevenue').textContent = formatMYR(total.revenue);
-  document.getElementById('kpiOrders').textContent = total.orders.toLocaleString();
+  // Cover kicker
+  document.getElementById('coverKicker').textContent =
+    `The cover story · ${period === 'today' ? formatDate(start) : (pLabels[period] || period)}`;
+
+  // Cover panel label
+  document.getElementById('coverPanelLabel').textContent =
+    `↘ ${pLabels[period] || period}'s revenue`;
+
+  // Top channel
+  const sorted = channels ? [...channels].sort((a, b) => b.revenue - a.revenue) : [];
+  const top    = sorted[0] || null;
+  document.getElementById('coverTopChannel').textContent = top ? top.label : '—';
+
+  // Lede
+  document.getElementById('coverLede').innerHTML =
+    `Books closed at <strong>RM ${total.revenue.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>` +
+    ` across ${total.orders} orders` +
+    (top ? ` — led by <strong>${top.label}</strong>.` : '.');
+
+  // KPI meta
   const aov = total.orders > 0 ? total.revenue / total.orders : 0;
-  document.getElementById('kpiAov').textContent = formatMYR(aov);
-  document.getElementById('kpiRevenueLabel').textContent = periodLabel(period);
-  document.getElementById('kpiOrdersLabel').textContent = periodLabel(period);
-  document.getElementById('kpiAovLabel').textContent = total.orders > 0 ? `${total.orders} orders` : '—';
+  document.getElementById('kpiRevenue').textContent = formatMYR(total.revenue);
+  document.getElementById('kpiOrders').textContent  = total.orders.toLocaleString();
+  document.getElementById('kpiAov').textContent     = formatMYR(aov);
+  document.getElementById('kpiRevenueLabel').textContent = pLabels[period] || period;
 
-  // Channels
-  const grid = document.getElementById('channelGrid');
-  grid.innerHTML = channels.map(ch => `
-    <div class="channel-card">
-      <div class="channel-header">
-        <span class="channel-name">${ch.label}</span>
-        <span class="badge ${ch.live ? 'badge-live' : 'badge-manual'}">${ch.live ? 'Live' : 'Manual'}</span>
+  // Cover panel big number
+  document.getElementById('coverPanelRevenue').textContent =
+    Math.round(total.revenue).toLocaleString('en-MY');
+  document.getElementById('coverPanelSub').textContent =
+    `${total.orders} orders · ${sorted.filter(c => c.revenue > 0).length} active channels`;
+
+  // Channel cards
+  document.getElementById('channelGrid').innerHTML = sorted.map((ch, i) => {
+    const grad = i === 0 ? COVER_GRAD : (CH_GRAD[ch.id] || 'linear-gradient(155deg,#444 0%,#222 100%)');
+    return `<div class="channel-card">
+      <div class="channel-card-band" style="background:${grad}">
+        <div class="channel-band-top">
+          <span>0${i+1} · ${ch.live ? 'Live' : 'Manual'}</span>
+          <span class="badge ${ch.live ? 'badge-live' : 'badge-manual'}">${ch.live ? 'Live' : 'Manual'}</span>
+        </div>
+        <div class="channel-band-name">${ch.label}</div>
       </div>
-      <div class="channel-revenue">${formatMYR(ch.revenue)}</div>
-      <div class="channel-orders">${ch.orders} order${ch.orders !== 1 ? 's' : ''}</div>
-    </div>
-  `).join('');
+      <div class="channel-card-body">
+        <div class="channel-revenue">${formatMYR(ch.revenue)}</div>
+        <div class="channel-meta">${ch.orders} order${ch.orders !== 1 ? 's' : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
 
-  // Shopify analytics panel
-  const sd = data.shopifyDetail;
+  // Shopify detail panel
+  const sd    = data.shopifyDetail;
   const panel = document.getElementById('shopifyPanel');
   if (sd) {
-    const rm = (v) => v != null ? formatMYR(v) : '—';
-    const pct = (v) => v != null ? v.toFixed(2) + '%' : '—';
-    const num = (v) => v != null ? v.toLocaleString() : '—';
-
+    const rm  = v => v != null ? formatMYR(v) : '—';
+    const pct = v => v != null ? v.toFixed(2) + '%' : '—';
+    const num = v => v != null ? v.toLocaleString() : '—';
     document.getElementById('shopifySalesMetrics').innerHTML = [
-      { label: 'Gross Sales',    value: rm(sd.grossSales) },
-      { label: 'Discounts',      value: sd.discounts != null ? '−' + formatMYR(Math.abs(sd.discounts)) : '—', neg: sd.discounts < 0 },
-      { label: 'Returns',        value: sd.returns != null ? '−' + formatMYR(Math.abs(sd.returns)) : '—',    neg: sd.returns < 0 },
-      { label: 'Net Sales',      value: rm(sd.netSales) },
-      { label: 'Shipping',       value: rm(sd.shippingCharges) },
-      { label: 'Taxes',          value: rm(sd.taxes) },
-    ].map(m => `
-      <div class="shopify-metric">
-        <div class="shopify-metric-label">${m.label}</div>
-        <div class="shopify-metric-value${m.neg ? ' negative' : ''}">${m.value}</div>
-      </div>
-    `).join('');
-
+      { label: 'Gross Sales', value: rm(sd.grossSales) },
+      { label: 'Discounts',   value: sd.discounts != null ? '−' + formatMYR(Math.abs(sd.discounts)) : '—', neg: sd.discounts < 0 },
+      { label: 'Returns',     value: sd.returns    != null ? '−' + formatMYR(Math.abs(sd.returns))   : '—', neg: sd.returns    < 0 },
+      { label: 'Net Sales',   value: rm(sd.netSales) },
+      { label: 'Shipping',    value: rm(sd.shippingCharges) },
+      { label: 'Taxes',       value: rm(sd.taxes) },
+    ].map(m => `<div class="shopify-metric"><div class="shopify-metric-label">${m.label}</div><div class="shopify-metric-value${m.neg?' negative':''}">${m.value}</div></div>`).join('');
     document.getElementById('shopifyPerfMetrics').innerHTML = [
-      { label: 'Sessions',          value: num(sd.sessions) },
-      { label: 'Conversion Rate',   value: pct(sd.conversionRate) },
-      { label: 'Avg Order Value',   value: rm(sd.averageOrderValue) },
-      { label: 'Returning Rate',    value: pct(sd.returningCustomerRate) },
-      { label: 'Orders Placed',     value: num(sd.orders) },
-      { label: 'Orders Fulfilled',  value: num(sd.ordersFulfilled) },
-    ].map(m => `
-      <div class="shopify-metric">
-        <div class="shopify-metric-label">${m.label}</div>
-        <div class="shopify-metric-value">${m.value}</div>
-      </div>
-    `).join('');
-
+      { label: 'Sessions',         value: num(sd.sessions) },
+      { label: 'Conversion Rate',  value: pct(sd.conversionRate) },
+      { label: 'Avg Order Value',  value: rm(sd.averageOrderValue) },
+      { label: 'Returning Rate',   value: pct(sd.returningCustomerRate) },
+      { label: 'Orders Placed',    value: num(sd.orders) },
+      { label: 'Orders Fulfilled', value: num(sd.ordersFulfilled) },
+    ].map(m => `<div class="shopify-metric"><div class="shopify-metric-label">${m.label}</div><div class="shopify-metric-value">${m.value}</div></div>`).join('');
     panel.classList.add('visible');
   } else {
     panel.classList.remove('visible');
@@ -925,63 +924,48 @@ function renderSummary(data) {
 /* ─── Trend Chart ────────────────────────────────────────────────────────────── */
 async function loadTrend() {
   try {
-    const resp = await fetch('/api/summary/trend?days=30');
-    const { trend } = await resp.json();
+    const { trend } = await fetch('/api/summary/trend?days=30').then(r => r.json());
     renderChart(trend);
-  } catch (e) {
-    console.error('Trend load failed', e);
-  }
+  } catch (e) { console.error('Trend load failed', e); }
 }
 
 function renderChart(trend) {
   const isDark = document.documentElement.dataset.theme === 'dark';
-  const labels = trend.map(d => d.date.slice(5)); // MM-DD
-  const values = trend.map(d => d.revenue);
-
   const ctx = document.getElementById('trendChart').getContext('2d');
   if (trendChart) trendChart.destroy();
-
   trendChart = new Chart(ctx, {
     type: 'line',
     data: {
-      labels,
+      labels: trend.map(d => d.date.slice(5)),
       datasets: [{
-        label: 'Revenue (RM)',
-        data: values,
-        borderColor: '#e63946',
-        borderWidth: 2,
-        pointRadius: 0,
-        pointHoverRadius: 4,
+        data: trend.map(d => d.revenue),
+        borderColor: '#a4172b', borderWidth: 2,
+        pointRadius: 0, pointHoverRadius: 4,
         fill: true,
-        backgroundColor: (ctx) => {
+        backgroundColor: ctx => {
           const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 200);
-          g.addColorStop(0, 'rgba(230,57,70,.15)');
-          g.addColorStop(1, 'rgba(230,57,70,0)');
+          g.addColorStop(0, 'rgba(164,23,43,.18)');
+          g.addColorStop(1, 'rgba(164,23,43,0)');
           return g;
         },
         tension: 0.4,
       }]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: ctx => ' RM ' + ctx.raw.toFixed(2)
-          }
-        }
+        tooltip: { callbacks: { label: ctx => ' RM ' + ctx.raw.toFixed(2) } }
       },
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: isDark ? '#666' : '#aaa', font: { size: 10 }, maxTicksLimit: 8 }
+          ticks: { color: isDark ? '#666' : '#6c6657', font: { size: 10, family: 'IBM Plex Mono' }, maxTicksLimit: 8 }
         },
         y: {
-          grid: { color: isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.04)' },
-          ticks: { color: isDark ? '#666' : '#aaa', font: { size: 10 }, callback: v => 'RM' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v) }
+          grid: { color: isDark ? 'rgba(255,255,255,.05)' : 'rgba(227,221,205,.8)' },
+          ticks: { color: isDark ? '#666' : '#6c6657', font: { size: 10, family: 'IBM Plex Mono' }, callback: v => 'RM' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v) }
         }
       }
     }
@@ -991,55 +975,43 @@ function renderChart(trend) {
 function updateChartTheme() {
   if (!trendChart) return;
   const isDark = document.documentElement.dataset.theme === 'dark';
-  trendChart.options.scales.x.ticks.color = isDark ? '#666' : '#aaa';
-  trendChart.options.scales.y.ticks.color = isDark ? '#666' : '#aaa';
-  trendChart.options.scales.y.grid.color = isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.04)';
+  trendChart.options.scales.x.ticks.color = isDark ? '#666' : '#6c6657';
+  trendChart.options.scales.y.ticks.color = isDark ? '#666' : '#6c6657';
+  trendChart.options.scales.y.grid.color  = isDark ? 'rgba(255,255,255,.05)' : 'rgba(227,221,205,.8)';
   trendChart.update();
 }
 
 /* ─── Manual Entry Modal ─────────────────────────────────────────────────────── */
-function openModal() { document.getElementById('overlay').classList.add('open'); }
+function openModal()  { document.getElementById('overlay').classList.add('open'); }
 function closeModal(e) {
-  if (!e || e.target === document.getElementById('overlay')) {
+  if (!e || e.target === document.getElementById('overlay'))
     document.getElementById('overlay').classList.remove('open');
-  }
 }
-
 async function saveEntry() {
   const payload = {
     channel:    document.getElementById('mChannel').value,
     entry_date: document.getElementById('mDate').value,
     revenue:    parseFloat(document.getElementById('mRevenue').value) || 0,
-    orders:     parseInt(document.getElementById('mOrders').value) || 0,
-    notes:      document.getElementById('mNotes').value || null
+    orders:     parseInt(document.getElementById('mOrders').value)   || 0,
+    notes:      document.getElementById('mNotes').value || null,
   };
   if (!payload.entry_date) return showToast('Select a date');
   try {
-    await fetch('/api/manual', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    await fetch('/api/manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     closeModal();
     showToast('Entry saved');
-    loadSummary();
-    loadTrend();
-    // Reset
-    document.getElementById('mRevenue').value = '';
-    document.getElementById('mOrders').value = '';
-    document.getElementById('mNotes').value = '';
-  } catch (e) {
-    showToast('Save failed');
-  }
+    loadSummary(); loadTrend();
+    ['mRevenue','mOrders','mNotes'].forEach(id => document.getElementById(id).value = '');
+  } catch { showToast('Save failed'); }
 }
 
 /* ─── WhatsApp Summary ───────────────────────────────────────────────────────── */
 function copyWhatsApp() {
   if (!summaryData) return showToast('Data not loaded yet');
   const { total, channels, period, start, end } = summaryData;
-  const aov = total.orders > 0 ? (total.revenue / total.orders).toFixed(2) : '0.00';
+  const aov    = total.orders > 0 ? (total.revenue / total.orders).toFixed(2) : '0.00';
   const dateStr = period === 'today' ? formatDate(start) : `${formatDate(start)} – ${formatDate(end)}`;
-  const lines = [
+  const text = [
     `🔴 *SHERO Sales — ${periodLabel(period)}*`,
     `📅 ${dateStr}`,
     ``,
@@ -1047,25 +1019,64 @@ function copyWhatsApp() {
     ``,
     ...channels.map(ch => `• ${ch.label}: RM ${ch.revenue.toFixed(2)} (${ch.orders} orders)`),
     ``,
-    `_Generated by SHERO OPS_`
-  ];
-  const text = lines.join('\n');
+    `_Generated by SHERO OPS_`,
+  ].join('\n');
   navigator.clipboard.writeText(text).then(() => {
-    const btn = document.getElementById('waBtn');
-    btn.classList.add('copied');
-    btn.querySelector('span') ? null : null;
+    document.getElementById('waBtn').classList.add('copied');
     showToast('Copied to clipboard');
-    setTimeout(() => btn.classList.remove('copied'), 2000);
+    setTimeout(() => document.getElementById('waBtn').classList.remove('copied'), 2000);
   }).catch(() => {
-    // Fallback
     const ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    ta.remove();
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
     showToast('Copied to clipboard');
   });
+}
+
+/* ─── Settings ───────────────────────────────────────────────────────────────── */
+async function openSettings() {
+  document.getElementById('settingsOverlay').classList.add('open');
+  try {
+    const s = await fetch('/api/settings').then(r => r.json());
+    document.getElementById('sShopifyStore').value = s.shopify_store || '';
+    document.getElementById('sShopifyToken').value = s.shopify_client_secret_set ? '••••••••' : '';
+    document.getElementById('sPosUrl').value        = s.pos_api_url || '';
+    const status = document.getElementById('shopifyStatus');
+    if (s.shopify_client_secret_set && s.shopify_store) {
+      status.textContent = 'Connected'; status.classList.remove('disconnected');
+    } else {
+      status.textContent = 'Disconnected'; status.classList.add('disconnected');
+    }
+  } catch { showToast('Failed to load settings'); }
+}
+function closeSettings(e) {
+  if (!e || e.target === document.getElementById('settingsOverlay'))
+    document.getElementById('settingsOverlay').classList.remove('open');
+}
+async function saveSettings() {
+  const body  = {};
+  const store = document.getElementById('sShopifyStore').value.trim();
+  const token = document.getElementById('sShopifyToken').value.trim();
+  const pos   = document.getElementById('sPosUrl').value.trim();
+  if (store) body.shopify_store = store;
+  if (token && !token.startsWith('••')) body.shopify_client_secret = token;
+  if (pos)   body.pos_api_url = pos;
+  try {
+    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    closeSettings();
+    showToast('Settings saved — refreshing…');
+    setTimeout(() => { loadSummary(); loadTrend(); }, 800);
+  } catch { showToast('Save failed'); }
+}
+function startShopifyOAuth() {
+  const store = document.getElementById('sShopifyStore').value.trim();
+  if (!store) { showToast('Enter your store domain first'); return; }
+  window.location.href = `/api/shopify/auth?shop=${encodeURIComponent(store)}`;
+}
+if (new URLSearchParams(location.search).get('connected') === 'shopify') {
+  history.replaceState({}, '', '/');
+  showToast('✅ Shopify connected!');
+  loadSummary();
 }
 
 /* ─── Helpers ────────────────────────────────────────────────────────────────── */
@@ -1077,78 +1088,16 @@ function formatDate(d) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 function periodLabel(p) {
-  return { today: 'Today', mtd: 'Month to date', ytd: 'Year to date' }[p] || p;
+  return { today: 'Yesterday', mtd: 'Month to date', ytd: 'Year to date' }[p] || p;
 }
 function setStatus(state, text) {
-  const dot = document.getElementById('statusDot');
-  dot.className = 'status-dot ' + state;
+  document.getElementById('statusDot').className = 'status-dot ' + state;
   document.getElementById('statusText').textContent = text;
 }
 function showToast(msg) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
+  t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
-}
-
-/* ─── Settings ───────────────────────────────────────────────────────────────── */
-async function openSettings() {
-  document.getElementById('settingsOverlay').classList.add('open');
-  try {
-    const r = await fetch('/api/settings');
-    const s = await r.json();
-    document.getElementById('sShopifyStore').value = s.shopify_store || '';
-    document.getElementById('sShopifyToken').value = s.shopify_client_secret_set ? '••••••••' : '';
-    document.getElementById('sPosUrl').value = s.pos_api_url || '';
-    const status = document.getElementById('shopifyStatus');
-    if (s.shopify_client_secret_set && s.shopify_store) {
-      status.textContent = 'Connected';
-      status.classList.remove('disconnected');
-    } else {
-      status.textContent = 'Disconnected';
-      status.classList.add('disconnected');
-    }
-  } catch (e) { showToast('Failed to load settings'); }
-}
-
-function closeSettings(e) {
-  if (!e || e.target === document.getElementById('settingsOverlay')) {
-    document.getElementById('settingsOverlay').classList.remove('open');
-  }
-}
-
-async function saveSettings() {
-  const body = {};
-  const store = document.getElementById('sShopifyStore').value.trim();
-  const token = document.getElementById('sShopifyToken').value.trim();
-  const pos   = document.getElementById('sPosUrl').value.trim();
-  if (store) body.shopify_store = store;
-  if (token && !token.startsWith('••')) body.shopify_client_secret = token;
-  if (pos)   body.pos_api_url = pos;
-
-  try {
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    closeSettings();
-    showToast('Settings saved — refreshing data…');
-    setTimeout(() => { loadSummary(); loadTrend(); }, 800);
-  } catch (e) { showToast('Save failed'); }
-}
-
-function startShopifyOAuth() {
-  const store = document.getElementById('sShopifyStore').value.trim();
-  if (!store) { showToast('Enter your store domain first'); return; }
-  window.location.href = `/api/shopify/auth?shop=${encodeURIComponent(store)}`;
-}
-
-// Handle ?connected=shopify redirect from OAuth callback
-if (new URLSearchParams(location.search).get('connected') === 'shopify') {
-  history.replaceState({}, '', '/');
-  showToast('✅ Shopify connected!');
-  loadSummary();
 }
 </script>
 </body>
