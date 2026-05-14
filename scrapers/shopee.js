@@ -15,9 +15,10 @@ const fs   = require('fs');
 
 chromium.use(StealthPlugin());
 
-const SESSION_FILE = path.join(__dirname, 'sessions', 'shopee.json');
-const LOGIN_URL    = 'https://seller.shopee.com.my/portal/login';
-const INSIGHT_URL  = 'https://seller.shopee.com.my/portal/business-insight';
+const SESSION_FILE  = path.join(__dirname, 'sessions', 'shopee.json');
+const LOGIN_URL     = 'https://seller.shopee.com.my/portal/login';
+const HOME_URL      = 'https://seller.shopee.com.my/';
+const INSIGHT_URL   = 'https://seller.shopee.com.my/datacenter/';
 
 /* ─── login ─────────────────────────────────────────────────────────────── */
 async function login() {
@@ -51,12 +52,15 @@ async function login() {
   } catch (_) {}
 
   console.log('[Shopee] Browser is open. Complete login (email → password → OTP).');
-  console.log('[Shopee] Press Enter once you see the Seller Centre home page.');
+  console.log('[Shopee] Session will be saved automatically once you reach the Seller Centre.');
 
-  await new Promise(resolve => {
-    process.stdin.resume();
-    process.stdin.once('data', () => { process.stdin.pause(); resolve(); });
-  });
+  // Wait until the browser navigates away from the login page (up to 5 minutes)
+  await page.waitForURL(
+    url => !url.toString().includes('/login') && !url.toString().includes('/verify'),
+    { timeout: 300000 }
+  );
+  // Let the landing page settle
+  await page.waitForTimeout(2000);
 
   fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
   await context.storageState({ path: SESSION_FILE });
@@ -66,63 +70,80 @@ async function login() {
 
 /* ─── date selection ─────────────────────────────────────────────────────── */
 async function selectDate(page, targetDate) {
-  // Shopee Business Insight has a date range picker at the top.
-  // We look for the date trigger button and set both start + end to targetDate.
+  // Shopee datacenter has preset buttons: Real-Time, Yesterday, Past 7 Days, etc.
+  // For daily scraping we always want "Yesterday". For older dates we use the calendar.
+  const myt       = new Date(Date.now() + 8 * 3600000);
+  const yesterday = new Date(+myt - 86400000).toISOString().slice(0, 10);
+
   try {
-    // Open the date picker — button typically shows current range or a calendar icon
-    const opened = await page.evaluate(() => {
-      const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
-      for (const el of candidates) {
-        const text = el.textContent?.trim() || '';
-        if (/\d{4}[-\/]\d{2}[-\/]\d{2}/.test(text) || /Yesterday|Today|Last \d+ days|Custom/i.test(text)) {
-          el.click(); return true;
+    if (targetDate === yesterday) {
+      // Click the "Yesterday" preset — simplest and most reliable
+      const clicked = await page.evaluate(() => {
+        for (const el of document.querySelectorAll('div, span, button, li')) {
+          if (el.textContent?.trim() === 'Yesterday' && !el.querySelector('*')) {
+            el.click(); return true;
+          }
         }
+        // Fallback: any element with exactly "Yesterday" text
+        for (const el of document.querySelectorAll('*')) {
+          if (el.childElementCount === 0 && el.textContent?.trim() === 'Yesterday') {
+            el.click(); return true;
+          }
+        }
+        return false;
+      });
+      if (clicked) {
+        await page.waitForTimeout(2000);
+        return;
       }
-      // Fallback: look for calendar icon wrapper
-      for (const el of document.querySelectorAll('[class*="date"], [class*="Date"], [class*="picker"], [class*="Picker"]')) {
-        if (el.tagName === 'BUTTON' || el.getAttribute('role') === 'button') {
+    }
+
+    // For non-yesterday dates: open picker and select from calendar
+    // Open the date picker
+    const opened = await page.evaluate(() => {
+      for (const el of document.querySelectorAll('*')) {
+        if (el.childElementCount === 0 && /Real-Time|Yesterday|Past \d+ Days/i.test(el.textContent?.trim())) {
           el.click(); return true;
         }
       }
       return false;
     });
-
     if (!opened) return;
     await page.waitForTimeout(600);
 
-    // Click "Custom" / "Custom Range" option if the picker shows presets
-    await page.evaluate(() => {
-      for (const el of document.querySelectorAll('li, [role="option"], [class*="option"], [class*="item"]')) {
-        const t = el.textContent?.trim();
-        if (t === 'Custom' || t === 'Custom Range' || t === 'Customise') {
+    // Click the target day in the calendar
+    const [, , day] = targetDate.split('-').map(Number);
+    await page.evaluate((d) => {
+      for (const el of document.querySelectorAll('td, [class*="day"], [class*="Day"]')) {
+        if (el.childElementCount === 0 && el.textContent?.trim() === String(d)) {
           el.click(); return true;
         }
       }
       return false;
-    });
+    }, day);
     await page.waitForTimeout(400);
 
-    // Fill both start and end inputs with targetDate
-    const inputs = await page.$$('input[type="text"], input[class*="date"], input[class*="Date"]');
-    for (const input of inputs.slice(0, 2)) {
-      await input.triple_click?.() || await input.click({ clickCount: 3 });
-      await input.fill(targetDate);
-      await page.waitForTimeout(200);
-    }
+    // Click same day again (start = end)
+    await page.evaluate((d) => {
+      for (const el of document.querySelectorAll('td, [class*="day"], [class*="Day"]')) {
+        if (el.childElementCount === 0 && el.textContent?.trim() === String(d)) {
+          el.click(); return true;
+        }
+      }
+      return false;
+    }, day);
 
-    // Confirm — try Apply / Confirm / OK in that order
+    // Confirm
     await page.evaluate(() => {
       for (const btn of document.querySelectorAll('button')) {
         const t = btn.textContent?.trim();
-        if (t === 'Apply' || t === 'Confirm' || t === 'OK' || t === 'Search') {
-          btn.click(); return true;
-        }
+        if (t === 'Apply' || t === 'Confirm' || t === 'OK') { btn.click(); return true; }
       }
       return false;
     });
     await page.waitForTimeout(2000);
   } catch (_) {
-    // Date selection failed — proceed with whatever date range is already shown
+    // Date selection failed — proceed with default shown
   }
 }
 
@@ -149,7 +170,10 @@ async function scrape(date) {
     throw new Error('No session found. Run: npm run login:shopee');
   }
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--disable-blink-features=AutomationControlled'],
+  });
   const context = await browser.newContext({
     storageState: SESSION_FILE,
     userAgent:
@@ -159,7 +183,8 @@ async function scrape(date) {
 
   const page = await context.newPage();
 
-  await page.goto(INSIGHT_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  // Load home first to establish SPA context, then navigate to Business Insights
+  await page.goto(HOME_URL, { waitUntil: 'networkidle', timeout: 30000 });
 
   // Session expired check
   if (page.url().includes('/login') || page.url().includes('/accounts.shopee')) {
@@ -167,8 +192,18 @@ async function scrape(date) {
     throw new Error('SESSION_EXPIRED');
   }
 
-  // Wait for initial render
-  await page.waitForTimeout(3000);
+  await page.goto(INSIGHT_URL, { waitUntil: 'networkidle', timeout: 30000 });
+  console.log('[Shopee] On page:', page.url());
+
+  // Wait for Key Metrics section to render
+  try {
+    await page.waitForFunction(
+      () => document.body.innerText.includes('Key Metrics'),
+      { timeout: 20000 }
+    );
+  } catch (_) {
+    console.warn('[Shopee] Key Metrics did not load in time — proceeding anyway');
+  }
 
   // Set date range to target date
   await selectDate(page, date);
@@ -184,11 +219,13 @@ async function scrape(date) {
   await page.waitForTimeout(1000);
 
   const data = await page.evaluate(() => {
+    const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG']);
     function allTextNodes(root) {
       const texts = [];
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       let node;
       while ((node = walker.nextNode())) {
+        if (SKIP_TAGS.has(node.parentElement?.tagName)) continue;
         const v = node.nodeValue.trim();
         if (v && v.length < 300) texts.push(v);
       }
@@ -200,65 +237,72 @@ async function scrape(date) {
 
     const tokens = allTextNodes(document.body);
 
-    function parseNum(s) {
-      if (!s) return null;
-      const clean = s.replace(/[^\d.\-]/g, '');
-      const n = parseFloat(clean);
-      return isNaN(n) ? null : n;
-    }
-    function parsePct(s) {
-      if (!s) return null;
-      const n = parseFloat(s.replace(/[^\d.\-]/g, ''));
-      return isNaN(n) ? null : n;
-    }
-    function parseInt2(s) {
-      if (!s) return null;
-      const n = parseInt(s.replace(/[^\d]/g, ''), 10);
-      return isNaN(n) ? null : n;
-    }
+    // Anchor to "Key Metrics" so we skip nav/tab duplicates of the same labels
+    const anchor = Math.max(0, tokens.indexOf('Key Metrics'));
 
-    // Find the value that follows a given label in the token stream.
-    // Looks up to `window` tokens ahead for something that looks like a number.
-    function findAfterLabel(label, window = 6) {
-      for (let i = 0; i < tokens.length; i++) {
+    // RM value: label → [description...] → "RM" → "1,234.56"  (two separate tokens)
+    function findRM(label, from) {
+      for (let i = from; i < tokens.length; i++) {
         if (tokens[i] !== label) continue;
-        for (let j = i + 1; j < Math.min(i + 1 + window, tokens.length); j++) {
-          const t = tokens[j];
-          // RM 1,234.56 | 1,234 | 12.34% | 1.23x
-          if (/^RM[\s\d,]+/.test(t) || /^[\d,]+\.?\d*$/.test(t) || /^\d+\.?\d*%$/.test(t) || /^\d+\.?\d*x$/.test(t)) {
-            return t;
+        for (let j = i + 1; j < Math.min(i + 25, tokens.length); j++) {
+          if (tokens[j] === 'RM' && /^[\d,]+\.?\d*$/.test(tokens[j + 1] || '')) {
+            return parseFloat(tokens[j + 1].replace(/,/g, ''));
           }
         }
       }
       return null;
     }
 
-    // ── Metric extraction ─────────────────────────────────────────────────
-    const totalIncomeRaw  = findAfterLabel('Total Income');
-    const salesMyrRaw     = findAfterLabel('Sales (MYR)');
-    const visitorsRaw     = findAfterLabel('Visitors');
-    const ordersRaw       = findAfterLabel('Orders');
-    const clicksRaw       = findAfterLabel('Clicks');
-    // Conv% label may vary across Shopee UI versions
-    const convRaw         = findAfterLabel('Conv.%')
-                         ?? findAfterLabel('Conv%')
-                         ?? findAfterLabel('Conv. Rate')
-                         ?? findAfterLabel('Conversion Rate');
-    const adExpenseRaw    = findAfterLabel('Ad Expense');
-    const roasRaw         = findAfterLabel('ROAS');
+    // Integer count: label → [description...] → integer (no decimal)
+    function findCount(label, from) {
+      for (let i = from; i < tokens.length; i++) {
+        if (tokens[i] !== label) continue;
+        for (let j = i + 1; j < Math.min(i + 25, tokens.length); j++) {
+          if (/^\d{1,7}$/.test(tokens[j].replace(/,/g, ''))) {
+            const n = parseInt(tokens[j].replace(/,/g, ''), 10);
+            if (n < 10000000) return n;
+          }
+        }
+      }
+      return null;
+    }
+
+    // Percentage: label → [description...] → "3.89" → "%"
+    function findPct(label, from) {
+      for (let i = from; i < tokens.length; i++) {
+        if (tokens[i] !== label) continue;
+        for (let j = i + 1; j < Math.min(i + 25, tokens.length); j++) {
+          if (/^\d+\.?\d*$/.test(tokens[j]) && tokens[j + 1] === '%') {
+            return parseFloat(tokens[j]);
+          }
+        }
+      }
+      return null;
+    }
+
+    // ── Extract ───────────────────────────────────────────────────────────
+    const revenue        = findRM('Sales', anchor);
+    const orders         = findCount('Orders', anchor);
+    const sessions       = findCount('Visitors', anchor);
+    const clicks         = findCount('Product Clicks', anchor);
+    const conversionRate = findPct('Order Conversion Rate', anchor);
+    const adSpend        = findRM('Ad Expense', anchor)
+                        ?? findRM('Total Ad Spend', anchor);
+    const roas = (() => {
+      for (let i = anchor; i < tokens.length; i++) {
+        if (tokens[i] === 'ROAS') {
+          for (let j = i + 1; j < Math.min(i + 20, tokens.length); j++) {
+            if (/^\d+\.?\d*x?$/.test(tokens[j])) return parseFloat(tokens[j]);
+          }
+        }
+      }
+      return null;
+    })();
 
     return {
-      revenue:        totalIncomeRaw ? parseNum(totalIncomeRaw)  : null,
-      grossSales:     salesMyrRaw    ? parseNum(salesMyrRaw)     : null,
-      sessions:       visitorsRaw    ? parseInt2(visitorsRaw)    : null,  // stored in sessions col
-      orders:         ordersRaw      ? parseInt2(ordersRaw)      : null,
-      clicks:         clicksRaw      ? parseInt2(clicksRaw)      : null,
-      conversionRate: convRaw        ? parsePct(convRaw)         : null,
-      adSpend:        adExpenseRaw   ? parseNum(adExpenseRaw)    : null,
-      roas:           roasRaw        ? parseNum(roasRaw)         : null,
-      // Debug: first 200 tokens so we can inspect if parsing breaks
-      rawTokens:      tokens.slice(0, 200),
-      url:            window.location.href,
+      revenue, orders, sessions, clicks, conversionRate, adSpend, roas,
+      rawTokens: tokens.slice(0, 400),
+      url:       window.location.href,
     };
   });
 
