@@ -51,6 +51,12 @@ async function init() {
     try { await db.execute(`ALTER TABLE cached_data ADD COLUMN ${col}`); } catch (_) {}
   }
 
+  // Shopee extended metrics columns
+  const shopeeCols = ['clicks INTEGER', 'roas REAL'];
+  for (const col of shopeeCols) {
+    try { await db.execute(`ALTER TABLE cached_data ADD COLUMN ${col}`); } catch (_) {}
+  }
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,

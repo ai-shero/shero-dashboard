@@ -7,7 +7,7 @@ const { db, init } = require('../server/db');
 
 const SCRAPERS = [
   { id: 'shopify', scraper: require('./shopify') },
-  // { id: 'shopee',  scraper: require('./shopee') },   // add when session saved
+  { id: 'shopee',  scraper: require('./shopee') },
   // { id: 'lazada',  scraper: require('./lazada') },
   // { id: 'tiktok',  scraper: require('./tiktok') },
 ];
@@ -20,8 +20,9 @@ async function upsertCache(channel, date, result) {
             shipping_charges, return_fees, taxes,
             orders_fulfilled, avg_order_value,
             sessions, conversion_rate, returning_customer_rate,
+            ad_spend, clicks, roas,
             fetched_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
           ON CONFLICT(channel, entry_date) DO UPDATE SET
             revenue=excluded.revenue, orders=excluded.orders,
             gross_sales=excluded.gross_sales, discounts=excluded.discounts,
@@ -31,6 +32,7 @@ async function upsertCache(channel, date, result) {
             avg_order_value=excluded.avg_order_value, sessions=excluded.sessions,
             conversion_rate=excluded.conversion_rate,
             returning_customer_rate=excluded.returning_customer_rate,
+            ad_spend=excluded.ad_spend, clicks=excluded.clicks, roas=excluded.roas,
             fetched_at=excluded.fetched_at`,
     args: [
       channel, date,
@@ -42,6 +44,7 @@ async function upsertCache(channel, date, result) {
       result.taxes ?? null, result.ordersFulfilled ?? null,
       result.averageOrderValue ?? null, result.sessions ?? null,
       result.conversionRate ?? null, result.returningCustomerRate ?? null,
+      result.adSpend ?? null, result.clicks ?? null, result.roas ?? null,
     ]
   });
 }
