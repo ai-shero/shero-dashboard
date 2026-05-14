@@ -36,11 +36,12 @@ router.get('/', async (req, res) => {
   const { start, end } = getDateRange(period);
   const base = `http://localhost:${process.env.PORT || 3200}`;
 
-  const [shopify, pos, shopee, manualRaw] = await Promise.all([
+  const [shopify, pos, shopee, lazada, manualRaw] = await Promise.all([
     fetchChannel(`${base}/api/shopify?start=${start}&end=${end}`),
     fetchChannel(`${base}/api/pos?start=${start}&end=${end}`),
     fetchChannel(`${base}/api/shopee?start=${start}&end=${end}`),
-    fetchChannel(`${base}/api/manual/aggregate?channels=tiktok,lazada,parkson,watsons&start=${start}&end=${end}`)
+    fetchChannel(`${base}/api/lazada?start=${start}&end=${end}`),
+    fetchChannel(`${base}/api/manual/aggregate?channels=tiktok,parkson,watsons&start=${start}&end=${end}`)
   ]);
 
   const manualByChannel = {};
@@ -48,11 +49,16 @@ router.get('/', async (req, res) => {
     manualRaw.forEach(r => { manualByChannel[r.channel] = r; });
   }
 
+  // Lazada: use live data if available, fall back to manual
+  const lazadaRevenue = lazada?.live ? (lazada.income || 0) : +(manualByChannel['lazada']?.revenue || 0);
+  const lazadaOrders  = lazada?.live ? (lazada.orders || 0) : +(manualByChannel['lazada']?.orders  || 0);
+  const lazadaLive    = lazada?.live ?? false;
+
   const channels = [
     { id: 'shopify',  label: 'Shopify',     revenue: shopify?.revenue  || 0, orders: shopify?.orders  || 0, live: shopify?.live  ?? false },
-    { id: 'shopee',   label: 'Shopee',      revenue: shopee?.revenue   || 0, orders: shopee?.orders   || 0, live: shopee?.live   ?? false },
+    { id: 'shopee',   label: 'Shopee',      revenue: shopee?.income    || shopee?.revenue || 0, orders: shopee?.orders || 0, live: shopee?.live ?? false },
     { id: 'tiktok',   label: 'TikTok Shop', revenue: +(manualByChannel['tiktok']?.revenue  || 0), orders: +(manualByChannel['tiktok']?.orders  || 0), live: false },
-    { id: 'lazada',   label: 'Lazada',      revenue: +(manualByChannel['lazada']?.revenue  || 0), orders: +(manualByChannel['lazada']?.orders  || 0), live: false },
+    { id: 'lazada',   label: 'Lazada',      revenue: lazadaRevenue, orders: lazadaOrders, live: lazadaLive },
     { id: 'pos',      label: 'SHERO POS',   revenue: pos?.revenue      || 0, orders: pos?.orders      || 0, live: pos?.live      ?? false },
     { id: 'parkson',  label: 'Parkson',     revenue: +(manualByChannel['parkson']?.revenue || 0), orders: +(manualByChannel['parkson']?.orders || 0), live: false },
     { id: 'watsons',  label: 'Watsons',     revenue: +(manualByChannel['watsons']?.revenue || 0), orders: +(manualByChannel['watsons']?.orders || 0), live: false },
@@ -81,9 +87,10 @@ router.get('/daily', async (req, res) => {
   const result = await db.execute({
     sql: `SELECT entry_date, channel, SUM(revenue) as revenue, SUM(orders) as orders
           FROM (
-            SELECT entry_date, 'shopify' as channel, revenue, orders FROM cached_data
+            SELECT entry_date, channel, revenue, orders FROM cached_data
             UNION ALL
-            SELECT entry_date, channel, revenue, orders FROM manual_entries WHERE channel != 'shopify'
+            SELECT entry_date, channel, revenue, orders FROM manual_entries
+              WHERE channel NOT IN (SELECT DISTINCT channel FROM cached_data)
           )
           WHERE entry_date >= ? AND entry_date <= ?
           GROUP BY entry_date, channel

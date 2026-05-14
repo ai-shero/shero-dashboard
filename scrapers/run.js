@@ -8,7 +8,7 @@ const { db, init } = require('../server/db');
 const SCRAPERS = [
   { id: 'shopify', scraper: require('./shopify') },
   { id: 'shopee',  scraper: require('./shopee') },
-  // { id: 'lazada',  scraper: require('./lazada') },
+  { id: 'lazada',  scraper: require('./lazada') },
   // { id: 'tiktok',  scraper: require('./tiktok') },
 ];
 
