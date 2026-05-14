@@ -2,6 +2,9 @@ services:
   - type: web
     name: shero-dashboard
     env: node
+    repo: https://github.com/ai-shero/shero-dashboard
+    branch: master
+    autoDeploy: true
     buildCommand: npm install
     startCommand: npm start
     envVars:

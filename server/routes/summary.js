@@ -49,14 +49,14 @@ router.get('/', async (req, res) => {
     manualRaw.forEach(r => { manualByChannel[r.channel] = r; });
   }
 
-  // Lazada: use live data if available, fall back to manual
-  const lazadaRevenue = lazada?.live ? (lazada.income || 0) : +(manualByChannel['lazada']?.revenue || 0);
+  // Lazada: use live data if available, fall back to manual. Prefer grossSales over income.
+  const lazadaRevenue = lazada?.live ? (lazada.grossSales || lazada.income || 0) : +(manualByChannel['lazada']?.revenue || 0);
   const lazadaOrders  = lazada?.live ? (lazada.orders || 0) : +(manualByChannel['lazada']?.orders  || 0);
   const lazadaLive    = lazada?.live ?? false;
 
   const channels = [
     { id: 'shopify',  label: 'Shopify',     revenue: shopify?.revenue  || 0, orders: shopify?.orders  || 0, live: shopify?.live  ?? false },
-    { id: 'shopee',   label: 'Shopee',      revenue: shopee?.income    || shopee?.revenue || 0, orders: shopee?.orders || 0, live: shopee?.live ?? false },
+    { id: 'shopee',   label: 'Shopee',      revenue: shopee?.grossSales || shopee?.income || shopee?.revenue || 0, orders: shopee?.orders || 0, live: shopee?.live ?? false },
     { id: 'tiktok',   label: 'TikTok Shop', revenue: +(manualByChannel['tiktok']?.revenue  || 0), orders: +(manualByChannel['tiktok']?.orders  || 0), live: false },
     { id: 'lazada',   label: 'Lazada',      revenue: lazadaRevenue, orders: lazadaOrders, live: lazadaLive },
     { id: 'pos',      label: 'SHERO POS',   revenue: pos?.revenue      || 0, orders: pos?.orders      || 0, live: pos?.live      ?? false },

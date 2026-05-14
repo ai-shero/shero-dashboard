@@ -410,7 +410,7 @@ async function scrape(date) {
 
     return {
       totalSales:           breakdown['Total sales']        ?? null,
-      grossSales:           breakdown['Gross sales']        ?? null,
+      grossSales:           breakdown['Total sales']        ?? null,  // no income tab — use Total sales as gross sales
       discounts:            breakdown['Discounts']          ?? null,
       returns:              breakdown['Returns']            ?? null,
       netSales:             breakdown['Net sales']          ?? null,

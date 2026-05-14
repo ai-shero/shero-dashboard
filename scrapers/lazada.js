@@ -200,19 +200,44 @@ async function scrapeMetrics(page, date) {
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(1000);
 
-  // Get Key Metrics container HTML (reserved for future DOM-based extraction)
-  const kmHtml = await page.evaluate(() => {
+  // ── Query Key Metrics Slick carousel slides directly ───────────────────
+  // Both slides are in the DOM simultaneously — no click needed.
+  // We get text from each slide independently so we can label them correctly.
+  const kmSlides = await page.evaluate(() => {
+    const textOf = (el) => {
+      const out = [];
+      const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = w.nextNode())) {
+        const p = n.parentElement;
+        if (['SCRIPT','STYLE'].includes(p?.tagName)) continue;
+        const v = n.nodeValue.trim();
+        if (v && v.length > 0 && v.length < 200) out.push(v);
+      }
+      return out;
+    };
+
+    // Find the Key Metrics container
     for (const el of document.querySelectorAll('*')) {
       if (el.childElementCount === 0 && el.textContent.trim() === 'Key Metrics') {
         let c = el;
-        for (let i = 0; i < 7; i++) c = c?.parentElement;
-        return c?.innerHTML?.slice(0, 6000) || null;
+        for (let i = 0; i < 8; i++) c = c?.parentElement;
+        if (!c) return [];
+
+        // Get all slick slides in this container
+        const slides = Array.from(c.querySelectorAll('.slick-slide'));
+        return slides.map((s, i) => ({
+          idx: i,
+          active: s.classList.contains('slick-active'),
+          tokens: textOf(s)
+        }));
       }
     }
-    return null;
+    return [];
   });
+  console.log('[Lazada] KM slides:', JSON.stringify(kmSlides.map(s => ({ idx: s.idx, active: s.active, tokens: s.tokens.slice(0, 20) }))));
 
-  // Collect all visible text tokens (for orders, visitors, CVR parsing)
+  // ── Collect full page tokens (for gross sales product ranking + CVR) ───
   const tokens = await page.evaluate(() => {
     const SKIP = new Set(['SCRIPT','STYLE','NOSCRIPT','SVG']);
     const out = [];
@@ -248,52 +273,122 @@ async function scrapeMetrics(page, date) {
   });
   console.log('[Lazada] Ads tokens:', JSON.stringify(adsTokens.slice(0, 80)));
 
-  return parseBaData(tokens, adsTokens, kmHtml, null);
+  return parseBaData(tokens, adsTokens, kmSlides);
 }
 
 /* ─── parseBaData ────────────────────────────────────────────────────────── */
-function parseBaData(tokens, adsTokens, kmHtml, storeJson) {
+function parseBaData(tokens, adsTokens, kmSlides) {
   const result = {};
 
-  // ── Key Metrics section ───────────────────────────────────────────────
-  const kmIdx = tokens.indexOf('Key Metrics');
-  if (kmIdx !== -1) {
-    const section = tokens.slice(kmIdx);
+  // ── Key Metrics from Slick carousel slides ────────────────────────────
+  // Both slides live in the DOM simultaneously.
+  // Strategy: match against known label text inside each slide; if labels aren't
+  // present as text nodes (they may be SVG-rendered) fall back to positional rules:
+  //   Slide 0 (active/first): Visitors, Conversion Rate
+  //   Slide 1 (next/hidden):  Orders, …
+  if (kmSlides && kmSlides.length > 0) {
+    const findLabel = (toks, ...names) =>
+      toks.findIndex(t => names.some(n => t.trim().toLowerCase() === n.toLowerCase()));
 
-    // Orders: first standalone positive integer after "Export" (not a %)
-    const expIdx = section.indexOf('Export');
-    if (expIdx !== -1) {
-      for (let i = expIdx + 1; i < Math.min(expIdx + 12, section.length); i++) {
-        const v = section[i];
-        if (!v.includes('%') && !/[a-z]/i.test(v)) {
-          const n = Number(v);
-          if (Number.isInteger(n) && n > 0) { result.orders = n; break; }
+    const firstIntAfter = (toks, idx) => {
+      for (let i = idx + 1; i < Math.min(idx + 6, toks.length); i++) {
+        if (!toks[i].includes('%') && !/[a-z]/i.test(toks[i])) {
+          const n = parseInt(toks[i], 10);
+          if (!isNaN(n) && n >= 0) return n;
         }
+      }
+      return null;
+    };
+
+    const firstFloatAfter = (toks, idx) => {
+      for (let i = idx + 1; i < Math.min(idx + 6, toks.length); i++) {
+        const n = parseFloat(toks[i].replace('%', ''));
+        if (!isNaN(n)) return n;
+      }
+      return null;
+    };
+
+    const firstIntIn = (toks) => {
+      for (const t of toks) {
+        if (!t.includes('%') && !/[a-z]/i.test(t)) {
+          const n = parseInt(t, 10);
+          if (!isNaN(n) && n >= 0) return n;
+        }
+      }
+      return null;
+    };
+
+    // ── Try label-based matching across ALL slides ─────────────────────
+    for (const slide of kmSlides) {
+      const toks = slide.tokens;
+
+      // Visitors
+      const viIdx = findLabel(toks, 'Visitors', 'Unique Visitors', 'Buyer Visits');
+      if (viIdx !== -1 && result.sessions == null) {
+        const v = firstIntAfter(toks, viIdx);
+        if (v != null) result.sessions = v;
+      }
+
+      // Orders
+      const orIdx = findLabel(toks, 'Orders', 'Orders Placed', 'Total Orders');
+      if (orIdx !== -1 && result.orders == null) {
+        const v = firstIntAfter(toks, orIdx);
+        if (v != null) result.orders = v;
+      }
+
+      // Conversion Rate
+      const cvrIdx = findLabel(toks, 'Conversion Rate', 'CVR');
+      if (cvrIdx !== -1 && result.conversionRate == null) {
+        const v = firstFloatAfter(toks, cvrIdx);
+        if (v != null) result.conversionRate = v;
       }
     }
 
-    // Conversion Rate: value immediately after "Conversion Rate" label
-    const cvrIdx = section.indexOf('Conversion Rate');
-    if (cvrIdx !== -1) {
-      const cvrVal = parseFloat(section[cvrIdx + 1]);
-      if (!isNaN(cvrVal)) result.conversionRate = cvrVal;
+    // ── Positional fallback if labels weren't found ────────────────────
+    // Slide 0 = first integer → Visitors
+    // Slide 1 = first integer → Orders
+    // This is correct per May-13 live observation (63 = visitors, orders on slide 1)
+    if (result.sessions == null && kmSlides[0]) {
+      const v = firstIntIn(kmSlides[0].tokens);
+      if (v != null) { result.sessions = v; console.log('[Lazada] sessions (slide-0 positional):', v); }
+    }
+    if (result.orders == null && kmSlides[1]) {
+      const v = firstIntIn(kmSlides[1].tokens);
+      if (v != null) { result.orders = v; console.log('[Lazada] orders (slide-1 positional):', v); }
     }
 
-    // Visitors: standalone integer right after "Revenue per Buyer" (and its % change)
-    const rpbIdx = section.indexOf('Revenue per Buyer');
-    if (rpbIdx !== -1) {
-      for (let i = rpbIdx + 1; i < Math.min(rpbIdx + 6, section.length); i++) {
-        const v = section[i];
-        if (!v.includes('%') && !/[a-z]/i.test(v)) {
-          const n = parseInt(v, 10);
-          if (!isNaN(n) && n > 0) { result.sessions = n; break; }
+    // CVR fallback from main tokens
+    if (result.conversionRate == null) {
+      const kmIdx = tokens.indexOf('Key Metrics');
+      if (kmIdx !== -1) {
+        const section = tokens.slice(kmIdx);
+        const ci = section.indexOf('Conversion Rate');
+        if (ci !== -1) {
+          const v = parseFloat(section[ci + 1]);
+          if (!isNaN(v)) result.conversionRate = v;
         }
       }
     }
+  } else {
+    // ── Full fallback: main page tokens only (pre-slides discovery path) ──
+    const kmIdx = tokens.indexOf('Key Metrics');
+    if (kmIdx !== -1) {
+      const section = tokens.slice(kmIdx);
 
-    // Gross sales: sum numeric values in "Ranking by Revenue" section
-    // Pattern: value | "Product Name" | value | "Product Name" | value | value ...
-    // Stop when two consecutive non-numeric tokens appear (= new section header)
+      // CVR
+      const cvrIdx = section.indexOf('Conversion Rate');
+      if (cvrIdx !== -1) {
+        const v = parseFloat(section[cvrIdx + 1]);
+        if (!isNaN(v)) result.conversionRate = v;
+      }
+    }
+  }
+
+  // ── Gross sales: sum numeric values in "Ranking by Revenue" section ───
+  // Works from full-page tokens regardless of carousel slide.
+  const kmIdx2 = tokens.indexOf('Key Metrics');
+  if (kmIdx2 !== -1) {
+    const section = tokens.slice(kmIdx2);
     const rrIdx = section.indexOf('Ranking by Revenue');
     if (rrIdx !== -1) {
       let sum = 0; let count = 0; let nonNumericRun = 0;
@@ -303,8 +398,6 @@ function parseBaData(tokens, adsTokens, kmHtml, storeJson) {
           sum += n; count++; nonNumericRun = 0;
         } else {
           nonNumericRun++;
-          // A single non-numeric token = product name between values (ok to skip)
-          // Two consecutive non-numeric tokens = entered a new section → stop
           if (count > 0 && nonNumericRun >= 2) break;
         }
       }
@@ -313,10 +406,8 @@ function parseBaData(tokens, adsTokens, kmHtml, storeJson) {
   }
 
   // ── Ad spend from Sponsored Services (/ba/ads) ───────────────────────
-  // Token pattern: "Est. Spend","RM","<value or ->"
   const spendIdx = adsTokens.findIndex(t => /^Est\.?\s*Spend$/i.test(t));
   if (spendIdx !== -1) {
-    // Find first value after "Est. Spend" (skip "RM" label)
     for (let i = spendIdx + 1; i < Math.min(spendIdx + 5, adsTokens.length); i++) {
       const v = adsTokens[i];
       if (v === '-' || v === '0' || v === '0.00') { result.adSpend = 0; break; }
@@ -324,7 +415,6 @@ function parseBaData(tokens, adsTokens, kmHtml, storeJson) {
       if (!isNaN(n)) { result.adSpend = n; break; }
     }
   }
-  // Default to 0 if no ad spend found (no sponsored campaigns)
   if (result.adSpend === undefined) result.adSpend = 0;
 
   console.log('[Lazada] Parsed metrics:', JSON.stringify(result));
