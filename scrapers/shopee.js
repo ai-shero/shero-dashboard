@@ -8,6 +8,7 @@
  * Scrape: node scrapers/shopee.js  (or called by scrapers/run.js)
  *   Uses saved session headlessly.
  */
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const { chromium } = require('playwright-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const path = require('path');
@@ -147,21 +148,160 @@ async function selectDate(page, targetDate) {
   }
 }
 
-/* ─── text extraction ────────────────────────────────────────────────────── */
-function allTextNodes(root) {
-  const texts = [];
-  const walker = root.ownerDocument
-    ? root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-    : document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let node;
-  while ((node = walker.nextNode())) {
-    const v = node.nodeValue.trim();
-    if (v && v.length < 300) texts.push(v);
+
+/* ─── Ad spend from Shopee Ads (PAS) page ───────────────────────────────── */
+const PAS_BASE_URL = 'https://seller.shopee.com.my/portal/marketing/pas/index';
+
+async function scrapeAdSpend(page, date) {
+  try {
+    // Build URL with the target date's timestamps (MYT midnight → midnight+86399s in UTC)
+    const [yr, mo, dy] = date.split('-').map(Number);
+    const dayStartMYT = Date.UTC(yr, mo - 1, dy, 0, 0, 0) - 8 * 3600000; // convert MYT midnight to UTC ms
+    const tstStart    = Math.floor(dayStartMYT / 1000);
+    const tstEnd      = tstStart + 86400 - 1;
+    const pasUrl = `${PAS_BASE_URL}?from=${tstStart}&to=${tstEnd}&type=new_cpc_homepage&group=custom`;
+
+    await page.goto(pasUrl, { waitUntil: 'networkidle', timeout: 30000 });
+    console.log('[Shopee] PAS URL:', page.url());
+
+    // Wait for the Ads Expense section to render
+    try {
+      await page.waitForFunction(
+        () => document.body.innerText.includes('Ads Expense'),
+        { timeout: 15000 }
+      );
+    } catch (_) {
+      console.warn('[Shopee] PAS content did not load in time');
+    }
+    await page.waitForTimeout(1000);
+
+    return await page.evaluate(() => {
+      const SKIP = new Set(['SCRIPT','STYLE','NOSCRIPT','SVG']);
+      function allText(root) {
+        const out = [];
+        const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        let n;
+        while ((n = w.nextNode())) {
+          if (SKIP.has(n.parentElement?.tagName)) continue;
+          const v = n.nodeValue.trim();
+          if (v && v.length < 300) out.push(v);
+        }
+        for (const el of root.querySelectorAll('*'))
+          if (el.shadowRoot) out.push(...allText(el.shadowRoot));
+        return out;
+      }
+      const tokens = allText(document.body);
+      const idx = tokens.findIndex(t => t.startsWith('Ads Expense'));
+      console.log('[PAS debug] Ads Expense idx:', idx, '| nearby:', JSON.stringify(tokens.slice(Math.max(0,idx-1), idx+10)));
+      if (idx >= 0) {
+        for (let j = idx + 1; j < Math.min(idx + 15, tokens.length); j++) {
+          // PAS page renders "RM133.44" as ONE combined token
+          if (/^RM[\d,]+\.?\d*$/.test(tokens[j])) {
+            return parseFloat(tokens[j].replace(/RM|,/g, ''));
+          }
+          // Fallback: "RM" + "133.44" as two separate tokens
+          if (tokens[j] === 'RM' && /^[\d,]+\.?\d*$/.test(tokens[j+1]||'')) {
+            return parseFloat(tokens[j+1].replace(/,/g,''));
+          }
+        }
+      }
+      return null;
+    });
+  } catch (err) {
+    console.warn('[Shopee] Ad spend scrape failed:', err.message);
+    return null;
   }
-  for (const el of root.querySelectorAll('*')) {
-    if (el.shadowRoot) texts.push(...allTextNodes(el.shadowRoot));
+}
+
+/* ─── Daily income from Finance > My Income ─────────────────────────────── */
+const FINANCE_URL = 'https://seller.shopee.com.my/portal/finance/income';
+
+/** Enter the finance payment password if the gate is showing. */
+async function handleFinancePin(page, pin) {
+  const pwInput = await page.$('input[type="password"]');
+  if (!pwInput || !pin) return;
+  console.log('[Shopee] Finance — entering payment password');
+  await pwInput.fill(pin);
+  await page.waitForTimeout(300);
+  await page.evaluate(() => {
+    for (const btn of document.querySelectorAll('button'))
+      if (btn.textContent?.trim() === 'Verify') { btn.click(); return; }
+  });
+  await page.waitForTimeout(3000);
+}
+
+async function scrapeIncome(page, date) {
+  const pin = process.env.SHOPEE_FINANCE_PIN;
+  try {
+    // Navigate to Finance to establish authenticated SPA context + pass PIN gate
+    await page.goto(FINANCE_URL, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(2000);
+    await handleFinancePin(page, pin);
+    await page.waitForTimeout(2000); // let Finance page fully render
+
+    console.log('[Shopee] Finance URL after verify:', page.url());
+
+    // ── Call the Finance API directly from the browser context ───────────
+    // Amounts come back in units of 1/100000 RM  (e.g. 8422000 → RM 84.22)
+    const INCOME_DETAIL_PATH = '/api/v4/accounting/pc/seller_income/income_overview/get_income_detail';
+
+    const rawTotal = await page.evaluate(async ({ targetDate, apiPath }) => {
+      const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+      let total = 0;
+      let cursor = null;
+      let iters  = 0;
+
+      do {
+        const body = {
+          source_type: 0,
+          income_category: 2,          // 2 = Released
+          pagination_info: {
+            direction: 0,
+            limit: 100,
+            ...(cursor ? { cursor } : {}),
+          },
+          local_query_condition: {
+            start_date: targetDate,    // YYYY-MM-DD
+            end_date:   targetDate,
+          },
+        };
+
+        const resp = await fetch(apiPath, {
+          method:  'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrftoken': csrfToken,
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (data.code !== 0) {
+          console.error('[Finance API] code:', data.code, data.message);
+          break;
+        }
+
+        const list = data.data?.list || [];
+        for (const item of list) {
+          total += (item.local_income_detail?.income_amount || 0);
+        }
+
+        // Paginate while there are more pages
+        const nextPage = data.data?.next_page;
+        cursor = (list.length === 100 && nextPage?.cursor) ? nextPage.cursor : null;
+        iters++;
+      } while (cursor && iters < 20);
+
+      return total;
+    }, { targetDate: date, apiPath: INCOME_DETAIL_PATH });
+
+    // Convert from 1/100000 RM units to RM
+    const income = rawTotal / 100000;
+    console.log('[Shopee] Finance income from API:', income, '(raw units:', rawTotal, ')');
+    return income > 0 ? income : null;
+  } catch (err) {
+    console.warn('[Shopee] Income scrape failed:', err.message);
+    return null;
   }
-  return texts;
 }
 
 /* ─── scrape ─────────────────────────────────────────────────────────────── */
@@ -300,14 +440,27 @@ async function scrape(date) {
     })();
 
     return {
-      revenue, orders, sessions, clicks, conversionRate, adSpend, roas,
-      rawTokens: tokens.slice(0, 400),
-      url:       window.location.href,
+      grossSales: revenue,  // Business Insights "Sales" → stored as gross_sales
+      orders, sessions, clicks, conversionRate,
     };
   });
 
+  // ── Ad spend from Shopee Ads page ──────────────────────────────────────
+  console.log('[Shopee] Scraping ad spend...');
+  const adSpend = await scrapeAdSpend(page, date);
+  console.log('[Shopee] Ad spend:', adSpend);
+
+  // ── Daily income from Finance page ─────────────────────────────────────
+  console.log('[Shopee] Scraping daily income...');
+  const totalIncome = await scrapeIncome(page, date);
+  console.log('[Shopee] Daily income:', totalIncome);
+
   await browser.close();
-  return data;
+  return {
+    ...data,
+    revenue: totalIncome,  // Finance released income = actual daily income
+    adSpend,
+  };
 }
 
 module.exports = { login, scrape };

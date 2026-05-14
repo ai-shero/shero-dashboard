@@ -5,3 +5,4 @@ node_modules/
 *.db-wal
 server.log
 server.err
+scrapers/sessions/
