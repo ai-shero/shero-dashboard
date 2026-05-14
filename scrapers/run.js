@@ -36,7 +36,7 @@ async function upsertCache(channel, date, result) {
             fetched_at=excluded.fetched_at`,
     args: [
       channel, date,
-      result.totalSales ?? result.revenue ?? 0,
+      result.totalSales ?? result.income ?? result.revenue ?? 0,
       result.ordersPlaced ?? result.orders ?? 0,
       result.grossSales ?? null, result.discounts ?? null,
       result.returns ?? null, result.netSales ?? null,
@@ -61,7 +61,7 @@ async function runAll(date) {
       console.log(`[Scrape] ${id}...`);
       const result = await scraper.scrape(today);
 
-      const revenue = result.totalSales ?? result.revenue;
+      const revenue = result.totalSales ?? result.income ?? result.revenue;
       const orders  = result.ordersPlaced ?? result.orders;
       if (revenue != null && orders != null) {
         await upsertCache(id, today, result);

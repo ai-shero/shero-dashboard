@@ -149,64 +149,70 @@ async function selectDate(page, targetDate) {
 }
 
 
-/* ─── Ad spend from Shopee Ads (PAS) page ───────────────────────────────── */
+/* ─── order type selection ───────────────────────────────────────────────── */
+async function selectOrderType(page) {
+  // Click the "Paid Order" radio/tab on Business Insights.
+  // All three options (Placed / Confirmed / Paid) are always in the DOM.
+  const clicked = await page.evaluate(() => {
+    for (const el of document.querySelectorAll('div, span, button, li')) {
+      if (el.childElementCount === 0 && el.textContent?.trim() === 'Paid Order') {
+        el.click(); return true;
+      }
+    }
+    return false;
+  });
+  if (clicked) {
+    await page.waitForTimeout(2000); // wait for metrics to refresh
+    console.log('[Shopee] Order type → Paid Order');
+  } else {
+    console.warn('[Shopee] Could not find Paid Order option');
+  }
+}
+
+/* ─── Ad spend from Shopee Ads (PAS) report API ─────────────────────────── */
 const PAS_BASE_URL = 'https://seller.shopee.com.my/portal/marketing/pas/index';
 
 async function scrapeAdSpend(page, date) {
   try {
-    // Build URL with the target date's timestamps (MYT midnight → midnight+86399s in UTC)
+    // Build MYT-midnight timestamps for the target date
     const [yr, mo, dy] = date.split('-').map(Number);
-    const dayStartMYT = Date.UTC(yr, mo - 1, dy, 0, 0, 0) - 8 * 3600000; // convert MYT midnight to UTC ms
-    const tstStart    = Math.floor(dayStartMYT / 1000);
-    const tstEnd      = tstStart + 86400 - 1;
-    const pasUrl = `${PAS_BASE_URL}?from=${tstStart}&to=${tstEnd}&type=new_cpc_homepage&group=custom`;
+    const dayStartMYT  = Date.UTC(yr, mo - 1, dy, 0, 0, 0) - 8 * 3600000;
+    const tstStart     = Math.floor(dayStartMYT / 1000);
+    const tstEnd       = tstStart + 86400 - 1;
 
+    // Navigate to PAS to establish the authenticated SPA context
+    const pasUrl = `${PAS_BASE_URL}?from=${tstStart}&to=${tstEnd}`;
     await page.goto(pasUrl, { waitUntil: 'networkidle', timeout: 30000 });
     console.log('[Shopee] PAS URL:', page.url());
-
-    // Wait for the Ads Expense section to render
-    try {
-      await page.waitForFunction(
-        () => document.body.innerText.includes('Ads Expense'),
-        { timeout: 15000 }
-      );
-    } catch (_) {
-      console.warn('[Shopee] PAS content did not load in time');
-    }
     await page.waitForTimeout(1000);
 
-    return await page.evaluate(() => {
-      const SKIP = new Set(['SCRIPT','STYLE','NOSCRIPT','SVG']);
-      function allText(root) {
-        const out = [];
-        const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-        let n;
-        while ((n = w.nextNode())) {
-          if (SKIP.has(n.parentElement?.tagName)) continue;
-          const v = n.nodeValue.trim();
-          if (v && v.length < 300) out.push(v);
-        }
-        for (const el of root.querySelectorAll('*'))
-          if (el.shadowRoot) out.push(...allText(el.shadowRoot));
-        return out;
+    // ── Call report/get_time_graph API directly (agg_interval 1 = daily) ──
+    // The PAS homepage "Ads Expense Today" card is real-time for the current day
+    // and ignores the URL date range.  The report API returns the settled daily
+    // total for the specified date range — this is what we want.
+    const rawTotal = await page.evaluate(async ({ tstStart, tstEnd }) => {
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+      const resp = await fetch('/api/pas/v1/report/get_time_graph/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrftoken': csrf },
+        body: JSON.stringify({
+          agg_interval:  1,                 // 1 = daily aggregation
+          campaign_type: 'new_cpc_homepage',
+          start_time:    tstStart,
+          end_time:      tstEnd,
+        }),
+      });
+      const data = await resp.json();
+      if (data.code !== 0) {
+        console.error('[PAS API] code:', data.code, data.msg);
+        return null;
       }
-      const tokens = allText(document.body);
-      const idx = tokens.findIndex(t => t.startsWith('Ads Expense'));
-      console.log('[PAS debug] Ads Expense idx:', idx, '| nearby:', JSON.stringify(tokens.slice(Math.max(0,idx-1), idx+10)));
-      if (idx >= 0) {
-        for (let j = idx + 1; j < Math.min(idx + 15, tokens.length); j++) {
-          // PAS page renders "RM133.44" as ONE combined token
-          if (/^RM[\d,]+\.?\d*$/.test(tokens[j])) {
-            return parseFloat(tokens[j].replace(/RM|,/g, ''));
-          }
-          // Fallback: "RM" + "133.44" as two separate tokens
-          if (tokens[j] === 'RM' && /^[\d,]+\.?\d*$/.test(tokens[j+1]||'')) {
-            return parseFloat(tokens[j+1].replace(/,/g,''));
-          }
-        }
-      }
-      return null;
-    });
+      const items = data.data?.report_by_time || [];
+      return items.reduce((s, i) => s + (i.metrics?.cost || 0), 0);
+    }, { tstStart, tstEnd });
+
+    if (rawTotal == null) return null;
+    return rawTotal / 100000;   // convert from 1/100000 RM units to RM
   } catch (err) {
     console.warn('[Shopee] Ad spend scrape failed:', err.message);
     return null;
@@ -348,6 +354,9 @@ async function scrape(date) {
   // Set date range to target date
   await selectDate(page, date);
 
+  // Switch to "Paid Order" order type
+  await selectOrderType(page);
+
   // Scroll to trigger lazy-loaded sections
   const pageHeight = await page.evaluate(() => document.body.scrollHeight);
   const steps = Math.ceil(pageHeight / 600);
@@ -458,7 +467,7 @@ async function scrape(date) {
   await browser.close();
   return {
     ...data,
-    revenue: totalIncome,  // Finance released income = actual daily income
+    income: totalIncome,  // Finance released income = actual daily income
     adSpend,
   };
 }

@@ -29,7 +29,7 @@ router.get('/', async (req, res) => {
       return res.json({
         channel:        'shopee',
         live:           true,
-        revenue:        n(row.revenue),
+        income:         n(row.revenue),
         grossSales:     n(row.gross_sales),
         orders:         row.orders   != null ? Number(row.orders)   : null,
         visitors:       row.visitors != null ? Number(row.visitors) : null,
@@ -54,14 +54,14 @@ router.get('/', async (req, res) => {
     return res.json({
       channel: 'shopee',
       live:    false,
-      revenue: +Number(row.revenue).toFixed(2),
+      income:  +Number(row.revenue).toFixed(2),
       orders:  +Number(row.orders),
     });
   } catch (err) {
     console.error('[Shopee] fallback error:', err.message);
   }
 
-  res.json({ channel: 'shopee', revenue: 0, orders: 0, live: false });
+  res.json({ channel: 'shopee', income: 0, orders: 0, live: false });
 });
 
 module.exports = router;
