@@ -287,35 +287,46 @@ body {
 .badge-live    { background: rgba(52,199,89,.2);  color: #1a8a3a; }
 .badge-manual  { background: rgba(108,102,87,.15); color: var(--sub); }
 
-/* ─── Shopify Panel ──────────────────────────────────────────────────────────── */
-.shopify-section { margin-bottom: 72px; }
-.shopify-panel { background: var(--paper); border: 1px solid var(--border); padding: 20px; display: none; transition: background var(--transition), border-color var(--transition); }
-@media (min-width: 640px) { .shopify-panel { padding: 24px 28px; } }
-.shopify-panel.visible { display: block; }
-.shopify-panel-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;
+/* ─── Analytics Table (Section 03) ──────────────────────────────────────────── */
+.analytics-section { margin-bottom: 72px; }
+.analytics-table-wrap {
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
 }
-.shopify-panel-title {
-  font-family: var(--mono); font-size: 11px; font-weight: 700;
-  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink);
+.analytics-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+  min-width: 860px; background: var(--paper);
 }
-.shopify-metric-group { margin-bottom: 16px; }
-.shopify-metric-group:last-child { margin-bottom: 0; }
-.shopify-group-label {
-  font-family: var(--mono); font-size: 10px; font-weight: 600;
-  letter-spacing: 0.14em; text-transform: uppercase; color: var(--sub); margin-bottom: 10px;
+.analytics-table thead th {
+  text-align: right;
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--sub);
+  padding: 12px 14px; background: var(--bg); border-bottom: 2px solid var(--border);
+  white-space: nowrap; transition: background var(--transition), border-color var(--transition);
 }
-.shopify-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-@media (min-width: 480px) { .shopify-metrics { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 768px) { .shopify-metrics { grid-template-columns: repeat(4, 1fr); } }
-.shopify-metric { background: var(--bg); padding: 10px 12px; transition: background var(--transition); }
-.shopify-metric-label {
-  font-family: var(--mono); font-size: 10px; font-weight: 500;
-  letter-spacing: 0.08em; text-transform: uppercase; color: var(--sub); margin-bottom: 3px;
+.analytics-table thead th:first-child { text-align: left; min-width: 110px; }
+.analytics-table td {
+  text-align: right; padding: 11px 14px; border-bottom: 1px solid var(--border);
+  color: var(--ink); white-space: nowrap; font-size: 13px; font-variant-numeric: tabular-nums;
+  background: var(--paper); transition: background var(--transition), border-color var(--transition);
 }
-.shopify-metric-value { font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.2; }
-.shopify-metric-value.negative { color: var(--accent); }
+.analytics-table td:first-child {
+  text-align: left; font-weight: 600; font-size: 13px;
+  position: sticky; left: 0; z-index: 1;
+  border-right: 1px solid var(--border); padding-left: 16px;
+}
+.analytics-table tbody tr:hover td { background: var(--bg); }
+.analytics-table tr:last-child td { border-bottom: none; }
+.analytics-total-row td {
+  font-weight: 700; font-family: var(--serif);
+  border-top: 2px solid var(--ink); background: var(--bg) !important;
+  transition: border-color var(--transition);
+}
+.analytics-ch-cell { display: flex; align-items: center; gap: 8px; }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.live-dot.is-live   { background: var(--green); }
+.live-dot.is-manual { background: var(--sub); opacity: 0.4; }
+.na-cell { color: var(--border); }
 
 /* ─── Departments / Chart ────────────────────────────────────────────────────── */
 .departments-section { margin-bottom: 72px; }
@@ -499,9 +510,8 @@ body {
     <section class="cover-section">
       <div>
         <div class="cover-kicker" id="coverKicker">The cover story · Loading…</div>
-        <h1 class="cover-headline">
-          A quiet day,<br>
-          <em>led by</em> <span id="coverTopChannel">—</span>.
+        <h1 class="cover-headline" id="coverHeadline">
+          A quiet day,<br><em>standing by</em>.
         </h1>
         <p class="cover-lede" id="coverLede">
           <span class="skeleton" style="width:100%;height:17px;margin-bottom:5px;"></span>
@@ -550,7 +560,7 @@ body {
       </div>
       <div class="toc-item">
         <div class="toc-num">03</div>
-        <div><div class="toc-title">Shopify detail</div><div class="toc-sub">Sales breakdown</div></div>
+        <div><div class="toc-title">Channel analytics</div><div class="toc-sub">All channels</div></div>
       </div>
       <div class="toc-item">
         <div class="toc-num">04</div>
@@ -571,21 +581,35 @@ body {
       <div class="channel-grid" id="channelGrid"><!-- populated by JS --></div>
     </section>
 
-    <!-- 03. Shopify Analytics -->
-    <section class="shopify-section">
-      <div class="shopify-panel" id="shopifyPanel">
-        <div class="shopify-panel-header">
-          <span class="shopify-panel-title">03 · Shopify deep dive</span>
-          <span class="badge badge-live">Live</span>
+    <!-- 03. Channel Analytics -->
+    <section class="analytics-section">
+      <div class="section-head">
+        <div class="section-num">03.</div>
+        <div>
+          <div class="section-kicker">Analytics</div>
+          <h2 class="section-title">Channel analytics</h2>
+          <p class="section-lede">Every metric we track, across all channels.</p>
         </div>
-        <div class="shopify-metric-group">
-          <div class="shopify-group-label">Sales breakdown</div>
-          <div class="shopify-metrics" id="shopifySalesMetrics"></div>
-        </div>
-        <div class="shopify-metric-group">
-          <div class="shopify-group-label">Store performance</div>
-          <div class="shopify-metrics" id="shopifyPerfMetrics"></div>
-        </div>
+      </div>
+      <div class="analytics-table-wrap">
+        <table class="analytics-table">
+          <thead>
+            <tr>
+              <th>Channel</th>
+              <th>Gross sales</th>
+              <th>Income released</th>
+              <th>Ad spend</th>
+              <th>Orders</th>
+              <th>Visitors</th>
+              <th>Conv. rate</th>
+              <th>Avg order</th>
+              <th>Returning rate</th>
+            </tr>
+          </thead>
+          <tbody id="analyticsTableBody">
+            <tr><td colspan="9" style="text-align:center;padding:24px;color:var(--sub);">Loading…</td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
 
@@ -821,6 +845,97 @@ function setTheme(t) {
   if (trendChart) updateChartTheme();
 }
 
+/* ─── Dynamic Headline ───────────────────────────────────────────────────────── */
+function buildHeadline(total, channels) {
+  if (!channels || !total || total.revenue === 0)
+    return `No sales yet,<br><em>standing by</em>.`;
+  const sorted   = [...channels].sort((a, b) => b.revenue - a.revenue);
+  const top      = sorted[0];
+  const active   = sorted.filter(c => c.revenue > 0).length;
+  const topShare = total.revenue > 0 ? top.revenue / total.revenue : 0;
+  const aov      = total.orders  > 0 ? total.revenue / total.orders : 0;
+
+  if (topShare >= 0.65) return `${top.label} carried<br><em>the day</em>.`;
+  if (total.orders >= 50) return `${total.orders} orders,<br><em>${top.label} leading</em>.`;
+  if (aov >= 400) return `High-value day,<br><em>${active} channels active</em>.`;
+  if (active <= 2) return `A quiet day,<br><em>led by</em> ${top.label}.`;
+  return `${active} channels,<br><em>led by</em> ${top.label}.`;
+}
+
+/* ─── Analytics Table ────────────────────────────────────────────────────────── */
+function renderAnalyticsTable(data) {
+  const tbody = document.getElementById('analyticsTableBody');
+  if (!tbody) return;
+
+  const { channels, shopifyDetail: sd, shopeeDetail: shd, lazadaDetail: ld, posDetail: pd } = data;
+  const byId = {};
+  if (channels) channels.forEach(c => { byId[c.id] = c; });
+
+  const detailOf = { shopify: sd, shopee: shd, lazada: ld, pos: pd };
+  const ORDER  = ['shopify','shopee','lazada','pos','tiktok','parkson','watsons'];
+  const LABELS = { shopify:'Shopify', shopee:'Shopee', lazada:'Lazada', pos:'POS', tiktok:'TikTok', parkson:'Parkson', watsons:'Watsons' };
+
+  const na  = `<span class="na-cell">N/A</span>`;
+  const dash= `<span class="na-cell">—</span>`;
+  const rm  = v => v != null ? formatMYR(v) : na;
+  const pct = v => v != null ? v.toFixed(2) + '%' : na;
+  const num = v => v != null ? Number(v).toLocaleString() : na;
+
+  let tGross = 0, tIncome = 0, tAd = 0, tOrders = 0, tVisitors = 0;
+  let hasIncome = false, hasAd = false, hasVisitors = false;
+
+  const rows = ORDER.map(id => {
+    const ch  = byId[id] || { revenue: 0, orders: 0, live: false };
+    const d   = detailOf[id] || null;
+
+    const gross    = d?.grossSales        ?? (ch.revenue  || null);
+    const income   = d?.income            ?? null;
+    const adSpend  = d?.adSpend           ?? null;
+    const orders   = d?.orders            ?? ch.orders ?? null;
+    const visitors = d?.visitors          ?? d?.sessions ?? null;
+    const cvr      = d?.conversionRate    ?? null;
+    const aov      = d?.averageOrderValue ?? null;
+    const ret      = d?.returningCustomerRate ?? null;
+
+    tGross    += gross    || 0;
+    tIncome   += income   || 0;
+    tAd       += adSpend  || 0;
+    tOrders   += (orders  || 0);
+    tVisitors += visitors || 0;
+    if (income   != null) hasIncome   = true;
+    if (adSpend  != null) hasAd       = true;
+    if (visitors != null) hasVisitors = true;
+
+    return `<tr>
+      <td><span class="analytics-ch-cell">
+        <span class="live-dot ${ch.live ? 'is-live' : 'is-manual'}"></span>${LABELS[id]}
+      </span></td>
+      <td>${gross != null ? rm(gross) : na}</td>
+      <td>${rm(income)}</td>
+      <td>${adSpend != null ? rm(adSpend) : na}</td>
+      <td>${orders != null ? orders : (ch.orders || 0)}</td>
+      <td>${num(visitors)}</td>
+      <td>${pct(cvr)}</td>
+      <td>${rm(aov)}</td>
+      <td>${pct(ret)}</td>
+    </tr>`;
+  }).join('');
+
+  const totalRow = `<tr class="analytics-total-row">
+    <td>Total</td>
+    <td>${rm(tGross)}</td>
+    <td>${hasIncome   ? rm(tIncome)                  : dash}</td>
+    <td>${hasAd       ? rm(tAd)                      : dash}</td>
+    <td>${tOrders}</td>
+    <td>${hasVisitors ? tVisitors.toLocaleString()   : dash}</td>
+    <td>${dash}</td>
+    <td>${dash}</td>
+    <td>${dash}</td>
+  </tr>`;
+
+  tbody.innerHTML = rows + totalRow;
+}
+
 /* ─── Summary ────────────────────────────────────────────────────────────────── */
 async function loadSummary() {
   setStatus('loading', 'Loading...');
@@ -850,10 +965,10 @@ function renderSummary(data) {
   document.getElementById('coverPanelLabel').textContent =
     `↘ ${pLabels[period] || period}'s revenue`;
 
-  // Top channel
+  // Cover headline (dynamic)
   const sorted = channels ? [...channels].sort((a, b) => b.revenue - a.revenue) : [];
   const top    = sorted[0] || null;
-  document.getElementById('coverTopChannel').textContent = top ? top.label : '—';
+  document.getElementById('coverHeadline').innerHTML = buildHeadline(total, channels);
 
   // Lede
   document.getElementById('coverLede').innerHTML =
@@ -892,33 +1007,8 @@ function renderSummary(data) {
     </div>`;
   }).join('');
 
-  // Shopify detail panel
-  const sd    = data.shopifyDetail;
-  const panel = document.getElementById('shopifyPanel');
-  if (sd) {
-    const rm  = v => v != null ? formatMYR(v) : '—';
-    const pct = v => v != null ? v.toFixed(2) + '%' : '—';
-    const num = v => v != null ? v.toLocaleString() : '—';
-    document.getElementById('shopifySalesMetrics').innerHTML = [
-      { label: 'Gross Sales', value: rm(sd.grossSales) },
-      { label: 'Discounts',   value: sd.discounts != null ? '−' + formatMYR(Math.abs(sd.discounts)) : '—', neg: sd.discounts < 0 },
-      { label: 'Returns',     value: sd.returns    != null ? '−' + formatMYR(Math.abs(sd.returns))   : '—', neg: sd.returns    < 0 },
-      { label: 'Net Sales',   value: rm(sd.netSales) },
-      { label: 'Shipping',    value: rm(sd.shippingCharges) },
-      { label: 'Taxes',       value: rm(sd.taxes) },
-    ].map(m => `<div class="shopify-metric"><div class="shopify-metric-label">${m.label}</div><div class="shopify-metric-value${m.neg?' negative':''}">${m.value}</div></div>`).join('');
-    document.getElementById('shopifyPerfMetrics').innerHTML = [
-      { label: 'Sessions',         value: num(sd.sessions) },
-      { label: 'Conversion Rate',  value: pct(sd.conversionRate) },
-      { label: 'Avg Order Value',  value: rm(sd.averageOrderValue) },
-      { label: 'Returning Rate',   value: pct(sd.returningCustomerRate) },
-      { label: 'Orders Placed',    value: num(sd.orders) },
-      { label: 'Orders Fulfilled', value: num(sd.ordersFulfilled) },
-    ].map(m => `<div class="shopify-metric"><div class="shopify-metric-label">${m.label}</div><div class="shopify-metric-value">${m.value}</div></div>`).join('');
-    panel.classList.add('visible');
-  } else {
-    panel.classList.remove('visible');
-  }
+  // Channel analytics table (section 03)
+  renderAnalyticsTable(data);
 }
 
 /* ─── Trend Chart ────────────────────────────────────────────────────────────── */
