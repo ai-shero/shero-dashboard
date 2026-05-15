@@ -123,9 +123,9 @@ async function openContext() {
   const lockFile = path.join(PROFILE_DIR, 'Default', 'LOCK');
   if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile);
   return chromium.launchPersistentContext(PROFILE_DIR, {
-    headless: false,   // keep visible for now while building scraper
-    args: ['--disable-blink-features=AutomationControlled', '--start-maximized'],
-    userAgent: UA, viewport: null,
+    headless: true,
+    args: ['--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-setuid-sandbox'],
+    userAgent: UA,
   });
 }
 
