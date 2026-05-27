@@ -26,6 +26,7 @@ app.use('/api/shopify', require('./routes/shopify'));
 app.use('/api/pos', require('./routes/pos'));
 app.use('/api/shopee', require('./routes/shopee'));
 app.use('/api/lazada', require('./routes/lazada'));
+app.use('/api/tiktok', require('./routes/tiktok'));
 app.use('/api/manual', require('./routes/manual'));
 
 app.get('*', (req, res) => {

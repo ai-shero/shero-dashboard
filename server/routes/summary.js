@@ -36,12 +36,13 @@ router.get('/', async (req, res) => {
   const { start, end } = getDateRange(period);
   const base = `http://localhost:${process.env.PORT || 3200}`;
 
-  const [shopify, pos, shopee, lazada, manualRaw] = await Promise.all([
+  const [shopify, pos, shopee, lazada, tiktok, manualRaw] = await Promise.all([
     fetchChannel(`${base}/api/shopify?start=${start}&end=${end}`),
     fetchChannel(`${base}/api/pos?start=${start}&end=${end}`),
     fetchChannel(`${base}/api/shopee?start=${start}&end=${end}`),
     fetchChannel(`${base}/api/lazada?start=${start}&end=${end}`),
-    fetchChannel(`${base}/api/manual/aggregate?channels=tiktok,parkson,watsons&start=${start}&end=${end}`)
+    fetchChannel(`${base}/api/tiktok?start=${start}&end=${end}`),
+    fetchChannel(`${base}/api/manual/aggregate?channels=parkson,watsons&start=${start}&end=${end}`)
   ]);
 
   const manualByChannel = {};
@@ -54,10 +55,15 @@ router.get('/', async (req, res) => {
   const lazadaOrders  = lazada?.live ? (lazada.orders || 0) : +(manualByChannel['lazada']?.orders  || 0);
   const lazadaLive    = lazada?.live ?? false;
 
+  // TikTok: use live scraped data if available, fall back to manual
+  const tiktokRevenue = tiktok?.live ? (tiktok.grossSales || tiktok.revenue || 0) : +(manualByChannel['tiktok']?.revenue || 0);
+  const tiktokOrders  = tiktok?.live ? (tiktok.orders || 0) : +(manualByChannel['tiktok']?.orders || 0);
+  const tiktokLive    = tiktok?.live ?? false;
+
   const channels = [
     { id: 'shopify',  label: 'Shopify',     revenue: shopify?.revenue  || 0, orders: shopify?.orders  || 0, live: shopify?.live  ?? false },
     { id: 'shopee',   label: 'Shopee',      revenue: shopee?.grossSales || shopee?.income || shopee?.revenue || 0, orders: shopee?.orders || 0, live: shopee?.live ?? false },
-    { id: 'tiktok',   label: 'TikTok Shop', revenue: +(manualByChannel['tiktok']?.revenue  || 0), orders: +(manualByChannel['tiktok']?.orders  || 0), live: false },
+    { id: 'tiktok',   label: 'TikTok Shop', revenue: tiktokRevenue, orders: tiktokOrders, live: tiktokLive },
     { id: 'lazada',   label: 'Lazada',      revenue: lazadaRevenue, orders: lazadaOrders, live: lazadaLive },
     { id: 'pos',      label: 'SHERO POS',   revenue: pos?.revenue      || 0, orders: pos?.orders      || 0, live: pos?.live      ?? false },
     { id: 'parkson',  label: 'Parkson',     revenue: +(manualByChannel['parkson']?.revenue || 0), orders: +(manualByChannel['parkson']?.orders || 0), live: false },
@@ -75,6 +81,7 @@ router.get('/', async (req, res) => {
     channels,
     shopifyDetail: shopify?.live ? shopify : null,
     shopeeDetail:  shopee?.live  ? shopee  : null,
+    tiktokDetail:  tiktok?.live  ? tiktok  : null,
     lazadaDetail:  lazada?.live  ? lazada  : null,
     posDetail:     pos?.live     ? pos     : null,
   });

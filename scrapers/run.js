@@ -9,7 +9,7 @@ const SCRAPERS = [
   { id: 'shopify', scraper: require('./shopify') },
   { id: 'shopee',  scraper: require('./shopee') },
   { id: 'lazada',  scraper: require('./lazada') },
-  // { id: 'tiktok',  scraper: require('./tiktok') },
+  { id: 'tiktok',  scraper: require('./tiktok') },
 ];
 
 async function upsertCache(channel, date, result) {
@@ -61,7 +61,7 @@ async function runAll(date) {
       console.log(`[Scrape] ${id}...`);
       const result = await scraper.scrape(today);
 
-      const revenue = result.totalSales ?? result.income ?? result.revenue;
+      const revenue = result.totalSales ?? result.income ?? result.revenue ?? result.grossSales;
       const orders  = result.ordersPlaced ?? result.orders;
       if (revenue != null && orders != null) {
         await upsertCache(id, today, result);
