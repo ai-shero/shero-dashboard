@@ -7,9 +7,8 @@
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
     "scrape": "node scrapers/run.js",
-    "login:shopify": "node scrapers/shopify.js --login",
-    "login:shopee": "node scrapers/shopee.js --login",
-    "login:lazada": "node scrapers/lazada.js --login",
+    "start-browser": "powershell -ExecutionPolicy Bypass -File scrapers\\launch-chrome.ps1",
+    "install-startup": "powershell -ExecutionPolicy Bypass -File scrapers\\install-startup.ps1",
     "login:tiktok": "node scrapers/tiktok.js --login"
   },
   "dependencies": {

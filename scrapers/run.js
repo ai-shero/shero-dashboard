@@ -70,8 +70,10 @@ async function runAll(date) {
         console.warn(`[Scrape] ${id} — could not parse data. Raw:`, result.rawText?.slice(0, 300));
       }
     } catch (err) {
-      if (err.message === 'SESSION_EXPIRED') {
-        console.error(`[Scrape] ${id} — session expired! Run: npm run login:${id}`);
+      if (err.message?.startsWith('NOT_LOGGED_IN')) {
+        console.error(`[Scrape] ${id} — not logged in. Open the scraper browser (npm run start-browser) and log in to ${id}.`);
+      } else if (err.message?.includes('remote debugging')) {
+        console.error(`[Scrape] ${id} — Chrome not running! Start it with: npm run start-browser`);
       } else {
         console.error(`[Scrape] ${id} error:`, err.message);
       }

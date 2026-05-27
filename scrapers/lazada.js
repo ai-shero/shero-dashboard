@@ -1,140 +1,19 @@
 /**
  * Lazada Malaysia Seller Centre scraper.
  *
- * Login : npm run login:lazada
- *   Opens a persistent browser profile. Log in manually once (with OTP).
- *   Profile saved to scrapers/profiles/lazada/ — device is then "remembered".
- *
- * Scrape: node scrapers/lazada.js [YYYY-MM-DD]
- *   Auto-logs in with email+password (OTP skipped if device is trusted).
- *   Defaults to yesterday (MYT).
+ * Requires the always-on Chrome to be running:  npm run start-browser
+ * Log in to Lazada in that browser once — sessions persist indefinitely.
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
-const { chromium } = require('playwright');
-const path = require('path');
-const fs   = require('fs');
+const cdp = require('./cdp');
 
-const PROFILE_DIR = path.join(__dirname, 'profiles', 'lazada');
-const HOME_URL    = 'https://sellercenter.lazada.com.my/';
-const LOGIN_URL   = 'https://sellercenter.lazada.com.my/apps/seller/login';
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-
-/* ─── login (manual — run once to register device) ──────────────────────── */
-async function login() {
-  console.log('[Lazada] Opening persistent browser for manual login...');
-  console.log('[Lazada] Log in with email + password + OTP.');
-  console.log('[Lazada] Once you see the Seller Centre dashboard, press Enter here.\n');
-
-  fs.mkdirSync(PROFILE_DIR, { recursive: true });
-  const context = await chromium.launchPersistentContext(PROFILE_DIR, {
-    headless: false,
-    args: ['--disable-blink-features=AutomationControlled', '--start-maximized', '--no-first-run'],
-    userAgent: UA, viewport: null,
-  });
-
-  const page = await context.newPage();
-  try { await page.goto('https://sellercenter.lazada.com.my/apps/register/index', { waitUntil: 'domcontentloaded', timeout: 30000 }); } catch (_) {}
-
-  console.log('[Lazada] Browser open. Click "Log In", complete login, then press Enter here.');
-  context.on('page', p => { p.on('load', () => console.log('[Lazada] Tab:', p.url())); });
-
-  await new Promise(resolve => {
-    process.stdin.resume();
-    process.stdin.once('data', () => { process.stdin.pause(); resolve(); });
-  });
-  await page.waitForTimeout(2000);
-  await context.close();
-  console.log('[Lazada] ✓ Profile saved to', PROFILE_DIR);
-}
-
-/* ─── auto-login ─────────────────────────────────────────────────────────── */
-async function autoLogin(page) {
-  const email    = process.env.LAZADA_EMAIL;
-  const password = process.env.LAZADA_PASSWORD;
-  if (!email || !password) throw new Error('LAZADA_EMAIL / LAZADA_PASSWORD not set in .env');
-
-  console.log('[Lazada] Auto-logging in...');
-  await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(2000);
-
-  // Fill email
-  const emailInput = await page.$('input[name="loginName"], input[type="email"], input[placeholder*="email" i], input[placeholder*="Email" i]');
-  if (!emailInput) throw new Error('Login: email input not found');
-  await emailInput.fill(email);
-  await page.waitForTimeout(500);
-
-  // Click "Login with Password" if that tab exists
-  await page.evaluate(() => {
-    for (const el of document.querySelectorAll('*'))
-      if (el.childElementCount === 0 && /login with password/i.test(el.textContent?.trim())) { el.click(); return; }
-  });
-  await page.waitForTimeout(800);
-
-  // Fill password
-  const pwInput = await page.$('input[name="password"], input[type="password"]');
-  if (!pwInput) throw new Error('Login: password input not found');
-  await pwInput.fill(password);
-  await page.waitForTimeout(500);
-
-  // Click Login / Submit button
-  await page.evaluate(() => {
-    for (const el of document.querySelectorAll('button, [role="button"]')) {
-      const t = el.textContent?.trim();
-      if (/^(Login|Log In|Sign In|Submit)$/i.test(t)) { el.click(); return; }
-    }
-  });
-  await page.waitForTimeout(4000);
-
-  const url = page.url();
-  console.log('[Lazada] After login attempt:', url);
-
-  // Handle OTP if it appears
-  const needsOtp = await page.evaluate(() =>
-    document.body.innerText.includes('verification') ||
-    document.body.innerText.includes('OTP') ||
-    document.body.innerText.includes('code sent') ||
-    !!document.querySelector('input[name="otp"], input[placeholder*="code" i]')
-  );
-
-  if (needsOtp) {
-    console.log('[Lazada] OTP required — enter it in the browser window, then press Enter here.');
-    await new Promise(resolve => {
-      process.stdin.resume();
-      process.stdin.once('data', () => { process.stdin.pause(); resolve(); });
-    });
-    await page.waitForTimeout(3000);
-  }
-
-  // Wait for redirect to dashboard
-  try {
-    await page.waitForURL(u => !u.includes('/login') && !u.includes('/register'), { timeout: 15000 });
-  } catch (_) {}
-
-  if (page.url().includes('/login') || page.url().includes('/register')) {
-    throw new Error('Auto-login failed — check LAZADA_EMAIL / LAZADA_PASSWORD in .env');
-  }
-  console.log('[Lazada] ✓ Logged in, on:', page.url());
-}
-
-/* ─── open context ───────────────────────────────────────────────────────── */
-async function openContext() {
-  if (!fs.existsSync(PROFILE_DIR)) throw new Error('No profile. Run: npm run login:lazada');
-  // Remove stale lock file if present
-  const lockFile = path.join(PROFILE_DIR, 'Default', 'LOCK');
-  if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile);
-  return chromium.launchPersistentContext(PROFILE_DIR, {
-    headless: true,
-    args: ['--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-setuid-sandbox'],
-    userAgent: UA,
-  });
-}
+const HOME_URL = 'https://sellercenter.lazada.com.my/';
 
 /* ─── scrapeIncome ───────────────────────────────────────────────────────── */
 async function scrapeIncome(page, date) {
   const INCOME_URL = 'https://sellercenter.lazada.com.my/portal/apps/finance/myIncome/index';
   console.log('[Lazada] Navigating to My Income...');
 
-  // Intercept the actual queryreleasedagg response the page sends
   let incomeData = null;
   const responseHandler = async (res) => {
     if (!res.url().includes('queryreleasedagg')) return;
@@ -183,16 +62,13 @@ async function scrapeIncome(page, date) {
 
 /* ─── scrapeMetrics (Business Advisor) ──────────────────────────────────── */
 async function scrapeMetrics(page, date) {
-  // dateType=recent1 = "yesterday" on the BA dashboard (confirmed)
   const BA_URL = `https://sellercenter.lazada.com.my/ba/dashboard?dateRange=${date}%7C${date}&dateType=recent1`;
   console.log('[Lazada] Navigating to BA dashboard:', BA_URL);
 
-  // Use domcontentloaded — networkidle never fires (BA has continuous WebSocket polling)
   await page.goto(BA_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(4000);
   console.log('[Lazada] BA URL:', page.url());
 
-  // Scroll the full page to trigger lazy-loaded metric sections
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
   await page.waitForTimeout(1500);
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
@@ -200,9 +76,7 @@ async function scrapeMetrics(page, date) {
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(1000);
 
-  // ── Query Key Metrics Slick carousel slides directly ───────────────────
-  // Both slides are in the DOM simultaneously — no click needed.
-  // We get text from each slide independently so we can label them correctly.
+  // Key Metrics Slick carousel slides
   const kmSlides = await page.evaluate(() => {
     const textOf = (el) => {
       const out = [];
@@ -217,14 +91,11 @@ async function scrapeMetrics(page, date) {
       return out;
     };
 
-    // Find the Key Metrics container
     for (const el of document.querySelectorAll('*')) {
       if (el.childElementCount === 0 && el.textContent.trim() === 'Key Metrics') {
         let c = el;
         for (let i = 0; i < 8; i++) c = c?.parentElement;
         if (!c) return [];
-
-        // Get all slick slides in this container
         const slides = Array.from(c.querySelectorAll('.slick-slide'));
         return slides.map((s, i) => ({
           idx: i,
@@ -237,7 +108,6 @@ async function scrapeMetrics(page, date) {
   });
   console.log('[Lazada] KM slides:', JSON.stringify(kmSlides.map(s => ({ idx: s.idx, active: s.active, tokens: s.tokens.slice(0, 20) }))));
 
-  // ── Collect full page tokens (for gross sales product ranking + CVR) ───
   const tokens = await page.evaluate(() => {
     const SKIP = new Set(['SCRIPT','STYLE','NOSCRIPT','SVG']);
     const out = [];
@@ -251,7 +121,7 @@ async function scrapeMetrics(page, date) {
     return [...new Set(out)];
   });
 
-  // ── ads page (Sponsored Services) ─────────────────────────────────────
+  // Ads page
   const ADS_URL = `https://sellercenter.lazada.com.my/ba/ads?dateRange=${date}%7C${date}&dateType=recent1`;
   console.log('[Lazada] Navigating to BA Ads:', ADS_URL);
   await page.goto(ADS_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -280,12 +150,6 @@ async function scrapeMetrics(page, date) {
 function parseBaData(tokens, adsTokens, kmSlides) {
   const result = {};
 
-  // ── Key Metrics from Slick carousel slides ────────────────────────────
-  // Both slides live in the DOM simultaneously.
-  // Strategy: match against known label text inside each slide; if labels aren't
-  // present as text nodes (they may be SVG-rendered) fall back to positional rules:
-  //   Slide 0 (active/first): Visitors, Conversion Rate
-  //   Slide 1 (next/hidden):  Orders, …
   if (kmSlides && kmSlides.length > 0) {
     const findLabel = (toks, ...names) =>
       toks.findIndex(t => names.some(n => t.trim().toLowerCase() === n.toLowerCase()));
@@ -318,25 +182,21 @@ function parseBaData(tokens, adsTokens, kmSlides) {
       return null;
     };
 
-    // ── Try label-based matching across ALL slides ─────────────────────
     for (const slide of kmSlides) {
       const toks = slide.tokens;
 
-      // Visitors
       const viIdx = findLabel(toks, 'Visitors', 'Unique Visitors', 'Buyer Visits');
       if (viIdx !== -1 && result.sessions == null) {
         const v = firstIntAfter(toks, viIdx);
         if (v != null) result.sessions = v;
       }
 
-      // Orders
       const orIdx = findLabel(toks, 'Orders', 'Orders Placed', 'Total Orders');
       if (orIdx !== -1 && result.orders == null) {
         const v = firstIntAfter(toks, orIdx);
         if (v != null) result.orders = v;
       }
 
-      // Conversion Rate
       const cvrIdx = findLabel(toks, 'Conversion Rate', 'CVR');
       if (cvrIdx !== -1 && result.conversionRate == null) {
         const v = firstFloatAfter(toks, cvrIdx);
@@ -344,10 +204,6 @@ function parseBaData(tokens, adsTokens, kmSlides) {
       }
     }
 
-    // ── Positional fallback if labels weren't found ────────────────────
-    // Slide 0 = first integer → Visitors
-    // Slide 1 = first integer → Orders
-    // This is correct per May-13 live observation (63 = visitors, orders on slide 1)
     if (result.sessions == null && kmSlides[0]) {
       const v = firstIntIn(kmSlides[0].tokens);
       if (v != null) { result.sessions = v; console.log('[Lazada] sessions (slide-0 positional):', v); }
@@ -357,7 +213,6 @@ function parseBaData(tokens, adsTokens, kmSlides) {
       if (v != null) { result.orders = v; console.log('[Lazada] orders (slide-1 positional):', v); }
     }
 
-    // CVR fallback from main tokens
     if (result.conversionRate == null) {
       const kmIdx = tokens.indexOf('Key Metrics');
       if (kmIdx !== -1) {
@@ -370,12 +225,9 @@ function parseBaData(tokens, adsTokens, kmSlides) {
       }
     }
   } else {
-    // ── Full fallback: main page tokens only (pre-slides discovery path) ──
     const kmIdx = tokens.indexOf('Key Metrics');
     if (kmIdx !== -1) {
       const section = tokens.slice(kmIdx);
-
-      // CVR
       const cvrIdx = section.indexOf('Conversion Rate');
       if (cvrIdx !== -1) {
         const v = parseFloat(section[cvrIdx + 1]);
@@ -384,8 +236,7 @@ function parseBaData(tokens, adsTokens, kmSlides) {
     }
   }
 
-  // ── Gross sales: sum numeric values in "Ranking by Revenue" section ───
-  // Works from full-page tokens regardless of carousel slide.
+  // Gross sales from Ranking by Revenue
   const kmIdx2 = tokens.indexOf('Key Metrics');
   if (kmIdx2 !== -1) {
     const section = tokens.slice(kmIdx2);
@@ -405,7 +256,7 @@ function parseBaData(tokens, adsTokens, kmSlides) {
     }
   }
 
-  // ── Ad spend from Sponsored Services (/ba/ads) ───────────────────────
+  // Ad spend from Sponsored Services
   const spendIdx = adsTokens.findIndex(t => /^Est\.?\s*Spend$/i.test(t));
   if (spendIdx !== -1) {
     for (let i = spendIdx + 1; i < Math.min(spendIdx + 5, adsTokens.length); i++) {
@@ -423,23 +274,17 @@ function parseBaData(tokens, adsTokens, kmSlides) {
 
 /* ─── scrape ─────────────────────────────────────────────────────────────── */
 async function scrape(date) {
-  const context = await openContext();
-  const page = await context.newPage();
+  const { page } = await cdp.newPage();
 
   try {
     await page.goto(HOME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.waitForTimeout(3000);
     console.log('[Lazada] Landed on:', page.url());
 
-    // Auto-login if session expired
+    // Check if logged in
     if (page.url().includes('/login') || page.url().includes('/register')) {
-      console.log('[Lazada] Session expired — auto-logging in...');
-      await autoLogin(page);
-      // Give SPA time to fully initialize after login before navigating sub-pages
-      await page.waitForTimeout(3000);
+      throw new Error('NOT_LOGGED_IN: Open the scraper browser and log in to Lazada.');
     }
-
-    console.log('[Lazada] On page:', page.url());
 
     const income  = await scrapeIncome(page, date);
     const metrics = await scrapeMetrics(page, date);
@@ -450,22 +295,17 @@ async function scrape(date) {
 
     return { income, ...(metrics || {}) };
   } finally {
-    await context.close();
+    await page.close(); // close tab only — never close the browser
   }
 }
 
-module.exports = { login, scrape };
+module.exports = { scrape };
 
 /* ─── CLI ────────────────────────────────────────────────────────────────── */
 if (require.main === module) {
-  const args = process.argv.slice(2);
-  if (args[0] === '--login') {
-    login().catch(console.error);
-  } else {
-    const myt       = new Date(Date.now() + 8 * 3600000);
-    const yesterday = new Date(+myt - 86400000).toISOString().slice(0, 10);
-    scrape(args[0] || yesterday)
-      .then(d => console.log('[Result]', JSON.stringify(d, null, 2)))
-      .catch(console.error);
-  }
+  const myt       = new Date(Date.now() + 8 * 3600000);
+  const yesterday = new Date(+myt - 86400000).toISOString().slice(0, 10);
+  scrape(process.argv[2] || yesterday)
+    .then(d => console.log('[Result]', JSON.stringify(d, null, 2)))
+    .catch(console.error);
 }
