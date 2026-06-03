@@ -232,24 +232,14 @@ async function scrapeIncome(page, date) {
 
 /* ─── product rankings (units sold) ──────────────────────────────────────── */
 // Business Insights → Product Performance. The /api/mydata/v4/product/performance/
-// endpoint is date-filterable via unix start/end, so we grab the session token
-// (SPC_CDS) from the page then fetch the target day directly. paid_units = units sold.
-async function scrapeProductRankings(page, date) {
+// endpoint is date-filterable via unix start/end. We pass the session token
+// (SPC_CDS, captured during the main scrape) and fetch the target day directly
+// from the current shopee-origin page — no extra navigation. paid_units = units sold.
+async function scrapeProductRankings(page, date, spc) {
   try {
     const [y, m, d] = date.split('-').map(Number);
     const start = Math.floor(Date.UTC(y, m - 1, d, -8, 0, 0) / 1000); // 00:00 MYT
     const end = start + 86399;
-
-    let spc = null;
-    const onReq = (req) => {
-      const mm = req.url().match(/[?&]SPC_CDS=([^&]+)/);
-      if (mm && req.url().includes('/api/mydata/')) spc = mm[1];
-    };
-    page.on('request', onReq);
-    await page.goto('https://seller.shopee.com.my/datacenter/product/performance',
-      { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(5000);
-    page.off('request', onReq);
 
     if (!spc) { console.warn('[Shopee] No SPC_CDS — skipping product rankings'); return []; }
 
@@ -287,6 +277,14 @@ async function scrapeProductRankings(page, date) {
 /* ─── scrape ─────────────────────────────────────────────────────────────── */
 async function scrape(date) {
   const { page } = await cdp.newPage();
+
+  // Capture the SPC_CDS session token from any Shopee API request during the
+  // whole scrape — far more reliable than a short window on one page.
+  let spcCds = null;
+  page.on('request', (req) => {
+    const mm = req.url().match(/[?&]SPC_CDS=([^&]+)/);
+    if (mm && req.url().includes('seller.shopee.com.my')) spcCds = mm[1];
+  });
 
   try {
     // Load home first to establish SPA context.
@@ -403,7 +401,7 @@ async function scrape(date) {
     const totalIncome = await scrapeIncome(page, date);
     console.log('[Shopee] Daily income:', totalIncome);
 
-    const productRankings = await scrapeProductRankings(page, date);
+    const productRankings = await scrapeProductRankings(page, date, spcCds);
 
     return {
       ...data,
