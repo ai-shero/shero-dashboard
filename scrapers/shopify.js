@@ -425,9 +425,82 @@ async function _scrapeImpl(date) {
     // Log what we got to verify the date picker worked
     console.log(`[Shopify] Scraped for ${date}: totalSales=${data.totalSales}, orders=${data.ordersPlaced ?? data.ordersFulfilled}, sessions=${data.sessions}`);
 
+    data.productRankings = await scrapeProductRankings(page, date);
+
     return data;
   } finally {
     await page.close(); // close tab only — never close the browser
+  }
+}
+
+/* ─── product rankings (units sold) ──────────────────────────────────────── */
+// The "Total sales by product" analytics report accepts a ShopifyQL query in the
+// ?ql= URL param (with SINCE/UNTIL date), so we set the date there directly — no
+// calendar picker needed. The rendered report table lives in shadow DOM; we walk
+// the text nodes and read each row as [product_name, net_items_sold, "RM total"].
+async function scrapeProductRankings(page, date) {
+  try {
+    const ql = `FROM sales SHOW net_items_sold, total_sales `
+      + `WHERE product_title IS NOT NULL GROUP BY product_title `
+      + `SINCE ${date} UNTIL ${date} ORDER BY net_items_sold DESC LIMIT 50`;
+    const url = `${STORE_URL}/analytics/reports/total_sales_by_product?ql=${encodeURIComponent(ql)}`;
+
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+    // Wait for the report table to render product rows in the shadow DOM.
+    try {
+      await page.waitForFunction(() => {
+        function walk(root, out) {
+          const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+          let n; while ((n = w.nextNode())) { const v = n.nodeValue.trim(); if (v) out.push(v); }
+          for (const el of root.querySelectorAll('*')) if (el.shadowRoot) walk(el.shadowRoot, out);
+          return out;
+        }
+        const t = walk(document.body, []);
+        // a data row = an integer immediately followed by an "RM ..." value
+        return t.some((x, i) => /^\d+$/.test(x) && /^RM\s/.test(t[i + 1] || ''));
+      }, {}, { timeout: 25000 });
+    } catch (_) { /* may be a zero-sales day; proceed */ }
+    await page.waitForTimeout(1500);
+
+    const rows = await page.evaluate(() => {
+      function walk(root, out) {
+        const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        let n; while ((n = w.nextNode())) { const v = n.nodeValue.trim(); if (v && v.length < 80) out.push(v); }
+        for (const el of root.querySelectorAll('*')) if (el.shadowRoot) walk(el.shadowRoot, out);
+        return out;
+      }
+      const t = walk(document.body, []);
+      const out = [];
+      // Row signature: [name, <integer units>, "RM <total>"]. The name is the
+      // token immediately before the integer (Shopify renders it once or twice).
+      for (let i = 1; i < t.length - 1; i++) {
+        if (/^\d+$/.test(t[i]) && /^RM\s*[\d,]+\.\d{2}$/.test(t[i + 1] || '')) {
+          const name = t[i - 1];
+          // skip if "name" is actually a number/RM/UI token
+          if (/^\d+$/.test(name) || /^RM/.test(name) || /rows?$/.test(name)) continue;
+          out.push({ name, units: parseInt(t[i], 10), revenue: parseFloat(t[i + 1].replace(/[^\d.]/g, '')) });
+        }
+      }
+      return out;
+    });
+
+    // Dedupe by name (keep highest units), filter > 0, rank top 10.
+    const byName = {};
+    for (const r of rows) {
+      if (r.units <= 0) continue;
+      if (!byName[r.name] || r.units > byName[r.name].units) byName[r.name] = r;
+    }
+    const ranked = Object.values(byName)
+      .sort((a, b) => b.units - a.units || b.revenue - a.revenue)
+      .slice(0, 10)
+      .map((p, i) => ({ rank: i + 1, name: p.name, units: p.units, revenue: p.revenue, sku: null }));
+
+    console.log(`[Shopify] Product rankings for ${date}: ${ranked.length} products`);
+    return ranked;
+  } catch (e) {
+    console.warn('[Shopify] Product rankings failed:', e.message);
+    return [];
   }
 }
 
