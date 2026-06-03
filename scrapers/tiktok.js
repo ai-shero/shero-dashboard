@@ -49,9 +49,11 @@ async function _scrapeImpl(date) {
     page.on('response', onResponse);
 
     // ── Navigate ──────────────────────────────────────────────────────────────
+    // domcontentloaded, NOT networkidle — TikTok runs constant background polling
+    // so networkidle frequently never fires and the goto times out.
     await page.goto(`${BASE_URL}/compass/data-overview?shop_region=MY`, {
-      waitUntil: 'networkidle',
-      timeout: 30000,
+      waitUntil: 'domcontentloaded',
+      timeout: 45000,
     });
 
     if (page.url().includes('login') || page.url().includes('passport')) {
@@ -76,6 +78,10 @@ async function _scrapeImpl(date) {
       await page.waitForTimeout(1500);
 
       // ── Navigate calendar to correct month ──────────────────────────────────
+      // Header icons (Arco): double-left = prev YEAR, left = prev MONTH,
+      // right = next MONTH, double-right = next YEAR. We MUST target the
+      // single-month arrows by their svg icon class — selecting by position
+      // hits the prev/next-YEAR arrow and silently jumps 12 months.
       for (let attempt = 0; attempt < 24; attempt++) {
         const headers = await page.evaluate(() =>
           Array.from(document.querySelectorAll('.arco-picker-header-label'))
@@ -88,16 +94,20 @@ async function _scrapeImpl(date) {
 
         const target  = year * 12 + (month - 1);
         const current = leftYear * 12 + (leftMonth - 1);
+        const dir = target < current ? 'prev' : 'next';
 
-        const moved = await page.evaluate((goBack) => {
+        const moved = await page.evaluate((dir) => {
+          // '.arco-icon-left' matches ONLY the single-month arrow, not
+          // '.arco-icon-double-left' (different class token = the year arrow).
+          const want = dir === 'prev' ? '.arco-icon-left' : '.arco-icon-right';
           const icons = Array.from(document.querySelectorAll(
             '.arco-picker-header-icon:not(.arco-picker-header-icon-hidden)'
           ));
-          if (icons.length === 0) return false;
-          const btn = goBack ? icons[0] : icons[icons.length - 1];
+          const btn = icons.find(ic => ic.querySelector(want));
+          if (!btn) return false;
           btn.click();
           return true;
-        }, target < current);
+        }, dir);
 
         if (!moved) break;
         await page.waitForTimeout(500);

@@ -40,8 +40,12 @@ init().then(() => {
     console.log(`SHERO Dashboard running on http://localhost:${PORT}`);
   });
 
-  // Daily scrape at midnight MYT (UTC+8 = 16:00 UTC)
-  scheduleMidnightScrape();
+  // NOTE: The nightly scrape is NO LONGER scheduled in-process.
+  // It now runs via the Windows "Shero Dashboard - Daily Scrape" task
+  // (scrapers/run-daily.ps1), which survives reboots/sleep and catches up
+  // on missed nights. An in-process setTimeout did none of those and was the
+  // root cause of the May 30–Jun 2 data gap. Install with: npm run install-startup
+  // scheduleMidnightScrape();  // ← intentionally disabled
 }).catch(err => {
   console.error('DB init failed:', err);
   process.exit(1);

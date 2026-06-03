@@ -124,6 +124,8 @@ body {
   background: var(--green); margin-right: 5px;
   vertical-align: middle; position: relative; top: -1px;
 }
+.scrape-status.stale { color: #ff9f0a; }
+.scrape-status.stale .scrape-status-dot { background: #ff9f0a; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sub); animation: pulse 2s infinite; }
 .status-dot.loading { background: #ff9f0a; }
 .status-dot.ready   { background: var(--green); }
@@ -828,9 +830,21 @@ async function loadScrapeStatus() {
     if (!data) return;
     const rev  = 'RM ' + Number(data.revenue).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const time = new Date(data.scraped_at).toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' });
-    document.getElementById('scrapeStatusText').textContent =
-      `Last scrape: ${data.date} · ${rev} / ${data.orders} orders · ${time} MYT`;
-    document.getElementById('scrapeStatus').classList.add('visible');
+    const el = document.getElementById('scrapeStatus');
+
+    // Staleness: warn if the last successful scrape ran more than 30h ago.
+    // The nightly job runs ~00:30 daily, so >30h means at least one night was missed.
+    const ageHours = (Date.now() - new Date(data.scraped_at).getTime()) / 3600000;
+    let text = `Last scrape: ${data.date} · ${rev} / ${data.orders} orders · ${time} MYT`;
+    if (ageHours > 30) {
+      const days = Math.floor(ageHours / 24);
+      text = `⚠️ Data ${days >= 1 ? days + 'd' : Math.round(ageHours) + 'h'} stale — ` + text;
+      el.classList.add('stale');
+    } else {
+      el.classList.remove('stale');
+    }
+    document.getElementById('scrapeStatusText').textContent = text;
+    el.classList.add('visible');
   } catch {}
 }
 
