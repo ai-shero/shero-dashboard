@@ -33,17 +33,21 @@ if (Test-Cdp) {
   Write-Log "Chrome CDP already running."
 } else {
   Write-Log "Chrome CDP not running - launching..."
-  & (Join-Path $scrapers "launch-chrome.ps1") | Out-Null
+  # Do NOT pipe this call. launch-chrome.ps1 runs Start-Process chrome, and the
+  # spawned Chrome inherits the pipeline's stdout handle, so "| Out-Null" (or any
+  # pipe) blocks forever waiting for Chrome to exit. A bare call returns as soon
+  # as Start-Process detaches.
+  & (Join-Path $scrapers "launch-chrome.ps1")
 
   $ready = $false
-  for ($i = 0; $i -lt 30; $i++) {
+  for ($i = 0; $i -lt 60; $i++) {
     if (Test-Cdp) { $ready = $true; break }
     Start-Sleep -Seconds 1
   }
   if ($ready) {
     Write-Log "Chrome CDP is up."
   } else {
-    Write-Log "ERROR: Chrome CDP did not become ready after 30s. Aborting scrape."
+    Write-Log "ERROR: Chrome CDP did not become ready after 60s. Aborting scrape."
     exit 1
   }
 }

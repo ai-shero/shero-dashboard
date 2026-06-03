@@ -187,5 +187,10 @@ async function runAll(arg1, arg2) {
 module.exports = { runAll };
 
 if (require.main === module) {
-  runAll(process.argv[2], process.argv[3]).catch(console.error);
+  // Force exit on completion. Playwright's persistent CDP connection and the
+  // libSQL client keep open handles that otherwise leave the process alive
+  // ("zombie node"), which holds Chrome resources and degrades later scrapes.
+  runAll(process.argv[2], process.argv[3])
+    .then(() => process.exit(0))
+    .catch(err => { console.error(err); process.exit(1); });
 }
