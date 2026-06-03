@@ -16,6 +16,8 @@ router.get('/', async (req, res) => {
   const out = {};
   for (const channel of CHANNELS) {
     try {
+      // Pull all sold products over the range, then split into paid (revenue > 0,
+      // the ranking) and free gifts (units sold but RM0 — GWP / gift cards / samples).
       const r = await db.execute({
         sql: `SELECT product_name,
                      SUM(units)   AS units,
@@ -25,20 +27,24 @@ router.get('/', async (req, res) => {
               WHERE channel = ? AND entry_date >= ? AND entry_date <= ?
               GROUP BY product_name
               HAVING units > 0
-              ORDER BY units DESC, revenue DESC
-              LIMIT ?`,
-        args: [channel, start, end, limit],
+              ORDER BY units DESC, revenue DESC`,
+        args: [channel, start, end],
       });
-      out[channel] = r.rows.map((row, i) => ({
-        rank:    i + 1,
+
+      const rows = r.rows.map(row => ({
         name:    row.product_name,
-        units:   row.units != null ? Number(row.units) : null,
-        revenue: row.revenue != null ? +Number(row.revenue).toFixed(2) : null,
+        units:   row.units != null ? Number(row.units) : 0,
+        revenue: row.revenue != null ? +Number(row.revenue).toFixed(2) : 0,
         sku:     row.sku || null,
       }));
+
+      const ranked = rows.filter(p => p.revenue > 0).slice(0, limit).map((p, i) => ({ rank: i + 1, ...p }));
+      const freeGifts = rows.filter(p => p.revenue <= 0).slice(0, 10).map(p => ({ name: p.name, units: p.units }));
+
+      out[channel] = { ranked, freeGifts };
     } catch (err) {
       console.error(`[Rankings] ${channel} error:`, err.message);
-      out[channel] = [];
+      out[channel] = { ranked: [], freeGifts: [] };
     }
   }
 

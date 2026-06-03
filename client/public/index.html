@@ -408,6 +408,12 @@ body {
 .rank-units small { font-weight: 400; color: var(--sub); font-size: 10px; }
 .rank-rev { font-family: var(--mono); font-size: 10px; color: var(--sub); white-space: nowrap; margin-left: 6px; }
 .rank-empty { color: var(--sub); font-size: 12px; padding: 14px 0; text-align: center; font-style: italic; }
+.free-gifts { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.free-gifts-head { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sub); margin-bottom: 5px; }
+.free-row { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; }
+.free-name { flex: 1; font-size: 11.5px; color: var(--sub); line-height: 1.25; }
+.free-units { font-family: var(--mono); font-size: 11px; color: var(--sub); white-space: nowrap; }
+.free-units small { font-size: 9px; }
 
 /* ─── FAB ────────────────────────────────────────────────────────────────────── */
 .fab {
@@ -896,20 +902,29 @@ async function loadRankings() {
   try {
     const data = await fetch(`/api/rankings?start=${start}&end=${end}`).then(r => r.json());
     grid.innerHTML = RANK_CHANNELS.map(ch => {
-      const rows = data.channels[ch.id] || [];
-      const totalUnits = rows.reduce((s, p) => s + (p.units || 0), 0);
-      const body = rows.length
-        ? rows.map(p => `
+      const ch_ = data.channels[ch.id] || { ranked: [], freeGifts: [] };
+      const ranked = ch_.ranked || [];
+      const freeGifts = ch_.freeGifts || [];
+      const totalUnits = ranked.reduce((s, p) => s + (p.units || 0), 0);
+      const body = ranked.length
+        ? ranked.map(p => `
             <div class="rank-row">
               <span class="rank-num">${p.rank}</span>
               <span class="rank-name">${escapeHtml(p.name)}</span>
               <span class="rank-units">${p.units}<small> u</small>${p.revenue ? `<span class="rank-rev">RM ${p.revenue.toLocaleString('en-MY', {minimumFractionDigits:0, maximumFractionDigits:0})}</span>` : ''}</span>
             </div>`).join('')
         : '<div class="rank-empty">No units sold</div>';
+      const freeBlock = freeGifts.length
+        ? `<div class="free-gifts">
+             <div class="free-gifts-head">🎁 Free gifts</div>
+             ${freeGifts.map(g => `<div class="free-row"><span class="free-name">${escapeHtml(g.name)}</span><span class="free-units">${g.units}<small> u</small></span></div>`).join('')}
+           </div>`
+        : '';
       return `
         <div class="rank-card">
           <div class="rank-card-head"><span>${ch.label}</span>${totalUnits ? `<span class="rc-total">${totalUnits} u</span>` : ''}</div>
           ${body}
+          ${freeBlock}
         </div>`;
     }).join('');
   } catch (e) {
