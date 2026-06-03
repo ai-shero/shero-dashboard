@@ -110,7 +110,8 @@ async function scrapeAdSpend(page, date) {
     const tstEnd       = tstStart + 86400 - 1;
 
     const pasUrl = `${PAS_BASE_URL}?from=${tstStart}&to=${tstEnd}`;
-    await page.goto(pasUrl, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.goto(pasUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(2000);
     console.log('[Shopee] PAS URL:', page.url());
     await page.waitForTimeout(1000);
 
@@ -162,7 +163,8 @@ async function handleFinancePin(page, pin) {
 async function scrapeIncome(page, date) {
   const pin = process.env.SHOPEE_FINANCE_PIN;
   try {
-    await page.goto(FINANCE_URL, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.goto(FINANCE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(3000);
     await page.waitForTimeout(2000);
     await handleFinancePin(page, pin);
     await page.waitForTimeout(2000);
@@ -228,20 +230,77 @@ async function scrapeIncome(page, date) {
   }
 }
 
+/* ─── product rankings (units sold) ──────────────────────────────────────── */
+// Business Insights → Product Performance. The /api/mydata/v4/product/performance/
+// endpoint is date-filterable via unix start/end, so we grab the session token
+// (SPC_CDS) from the page then fetch the target day directly. paid_units = units sold.
+async function scrapeProductRankings(page, date) {
+  try {
+    const [y, m, d] = date.split('-').map(Number);
+    const start = Math.floor(Date.UTC(y, m - 1, d, -8, 0, 0) / 1000); // 00:00 MYT
+    const end = start + 86399;
+
+    let spc = null;
+    const onReq = (req) => {
+      const mm = req.url().match(/[?&]SPC_CDS=([^&]+)/);
+      if (mm && req.url().includes('/api/mydata/')) spc = mm[1];
+    };
+    page.on('request', onReq);
+    await page.goto('https://seller.shopee.com.my/datacenter/product/performance',
+      { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(5000);
+    page.off('request', onReq);
+
+    if (!spc) { console.warn('[Shopee] No SPC_CDS — skipping product rankings'); return []; }
+
+    const items = await page.evaluate(async ({ spc, start, end }) => {
+      const url = `/api/mydata/v4/product/performance/?SPC_CDS=${spc}&SPC_CDS_VER=2`
+        + `&start_time=${start}&end_time=${end}&period=real_time&keyword=`
+        + `&category_type=shopee&category_id=-1&page_size=50&page_num=1`
+        + `&order_type=confirmed&order_by=confirmed_sales.desc`;
+      try { const r = await fetch(url, { credentials: 'include' }); const j = await r.json(); return j?.result?.items || null; }
+      catch (_) { return null; }
+    }, { spc, start, end });
+
+    if (!items) { console.warn('[Shopee] Product performance fetch failed'); return []; }
+
+    const ranked = items
+      .map(it => ({
+        name:    it.name || '(unknown)',
+        sku:     it.id != null ? String(it.id) : null,
+        units:   Math.round(Number(it.paid_units) || 0),
+        revenue: Number(it.paid_sales) || 0,
+      }))
+      .filter(p => p.units > 0)
+      .sort((a, b) => b.units - a.units || b.revenue - a.revenue)
+      .slice(0, 10)
+      .map((p, i) => ({ rank: i + 1, ...p }));
+
+    console.log(`[Shopee] Product rankings for ${date}: ${ranked.length} products`);
+    return ranked;
+  } catch (e) {
+    console.warn('[Shopee] Product rankings failed:', e.message);
+    return [];
+  }
+}
+
 /* ─── scrape ─────────────────────────────────────────────────────────────── */
 async function scrape(date) {
   const { page } = await cdp.newPage();
 
   try {
-    // Load home first to establish SPA context
-    await page.goto(HOME_URL, { waitUntil: 'networkidle', timeout: 30000 });
+    // Load home first to establish SPA context.
+    // Use domcontentloaded — Shopee has persistent WebSocket/polling that prevents networkidle.
+    await page.goto(HOME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(3000);
 
     // Check if logged in
     if (page.url().includes('/login') || page.url().includes('/accounts.shopee')) {
       throw new Error('NOT_LOGGED_IN: Open the scraper browser and log in to Shopee.');
     }
 
-    await page.goto(INSIGHT_URL, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.goto(INSIGHT_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(3000);
     console.log('[Shopee] On page:', page.url());
 
     // Wait for Key Metrics section
@@ -344,10 +403,13 @@ async function scrape(date) {
     const totalIncome = await scrapeIncome(page, date);
     console.log('[Shopee] Daily income:', totalIncome);
 
+    const productRankings = await scrapeProductRankings(page, date);
+
     return {
       ...data,
       income: totalIncome,
       adSpend,
+      productRankings,
     };
   } finally {
     await page.close(); // close tab only — never close the browser

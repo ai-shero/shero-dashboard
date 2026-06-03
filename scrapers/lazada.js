@@ -272,6 +272,25 @@ function parseBaData(tokens, adsTokens, kmSlides) {
   return Object.keys(result).length > 0 ? result : null;
 }
 
+/* ─── product rankings (units sold) ──────────────────────────────────────── */
+// Maps the BA product-performance items into [{rank,name,units,revenue,sku}],
+// sorted by units desc, units > 0 only, top 10.
+function parseProductRankings(items) {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const val = (f) => (f && typeof f === 'object' ? f.value : f);
+  return items
+    .map(it => ({
+      name:    val(it.productName) || '(unknown)',
+      sku:     val(it.itemId) != null ? String(val(it.itemId)) : null,
+      units:   Math.round(Number(val(it.productUnitsSold)) || 0),
+      revenue: Number(val(it.productRevenue)) || 0,
+    }))
+    .filter(p => p.units > 0)
+    .sort((a, b) => b.units - a.units || b.revenue - a.revenue)
+    .slice(0, 10)
+    .map((p, i) => ({ rank: i + 1, ...p }));
+}
+
 /* ─── scrape ─────────────────────────────────────────────────────────────── */
 async function scrape(date) {
   const { page } = await cdp.newPage();
@@ -286,14 +305,27 @@ async function scrape(date) {
       throw new Error('NOT_LOGGED_IN: Open the scraper browser and log in to Lazada.');
     }
 
+    // Capture per-product units sold from the BA "Product Performance" report
+    // (date-filtered XHR that fires when scrapeMetrics loads the dashboard).
+    let perfItems = null;
+    const onPerf = async (res) => {
+      if (!res.url().includes('product/performance/batch/itemV2')) return;
+      try { const j = await res.json().catch(() => null); if (j?.data?.data) perfItems = j.data.data; } catch (_) {}
+    };
+    page.on('response', onPerf);
+
     const income  = await scrapeIncome(page, date);
     const metrics = await scrapeMetrics(page, date);
+
+    page.off('response', onPerf);
+    const productRankings = parseProductRankings(perfItems);
 
     console.log('\n[Lazada] Final result:');
     console.log('  income:', income);
     console.log('  metrics:', metrics);
+    console.log('  product rankings:', productRankings.length);
 
-    return { income, ...(metrics || {}) };
+    return { income, ...(metrics || {}), productRankings };
   } finally {
     await page.close(); // close tab only — never close the browser
   }

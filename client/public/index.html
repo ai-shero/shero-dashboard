@@ -386,6 +386,9 @@ body {
 }
 .rank-range-btn:hover { color: var(--ink); border-color: var(--sub); }
 .rank-range-btn.is-active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.rank-divider { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+.rank-date-wrap { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sub); display: inline-flex; align-items: center; gap: 7px; }
+.rank-date { font-family: var(--mono); font-size: 11px; padding: 6px 8px; border: 1px solid var(--border); background: var(--paper); color: var(--ink); border-radius: 2px; cursor: pointer; }
 .rank-range-label { font-family: var(--mono); font-size: 11px; color: var(--sub); margin-left: 4px; }
 .rank-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
 @media (min-width: 640px) { .rank-grid { grid-template-columns: 1fr 1fr; } }
@@ -707,6 +710,10 @@ body {
       <button class="rank-range-btn" data-range="yesterday" onclick="setRankRange('yesterday')">Yesterday</button>
       <button class="rank-range-btn is-active" data-range="7d" onclick="setRankRange('7d')">Last 7 days</button>
       <button class="rank-range-btn" data-range="month" onclick="setRankRange('month')">This month</button>
+      <span class="rank-divider"></span>
+      <label class="rank-date-wrap">Pick a day
+        <input type="date" id="rankDate" class="rank-date" onchange="setRankDate(this.value)">
+      </label>
       <span class="rank-range-label" id="rankRangeLabel"></span>
     </div>
     <div class="rank-grid" id="rankGrid">
@@ -819,6 +826,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('mDate').value =
     new Date(Date.now() + 8*3600000).toISOString().slice(0, 10);
 
+  // Rankings date picker: cap at yesterday (no future / incomplete days)
+  const _rd = document.getElementById('rankDate');
+  if (_rd) _rd.max = new Date(Date.now() + 8*3600000 - 86400000).toISOString().slice(0, 10);
+
   document.querySelectorAll('.period-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.period-tab').forEach(b => b.classList.remove('active'));
@@ -843,6 +854,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* ─── Rankings (Top products by units) ───────────────────────────────────────── */
 let rankRange = '7d';
+let rankCustomDate = null;   // when set, view this single day
 const RANK_CHANNELS = [
   { id: 'shopify', label: 'Shopify' },
   { id: 'shopee',  label: 'Shopee'  },
@@ -854,6 +866,7 @@ function mytToday() { return new Date(Date.now() + 8 * 3600000).toISOString().sl
 function shiftDay(ds, n) { const d = new Date(ds + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 
 function rankDateRange() {
+  if (rankCustomDate) return { start: rankCustomDate, end: rankCustomDate };
   const today = mytToday();
   const yesterday = shiftDay(today, -1);
   if (rankRange === 'yesterday') return { start: yesterday, end: yesterday };
@@ -863,7 +876,16 @@ function rankDateRange() {
 
 function setRankRange(r) {
   rankRange = r;
+  rankCustomDate = null;                                  // clear any picked day
+  document.getElementById('rankDate').value = '';
   document.querySelectorAll('.rank-range-btn').forEach(b => b.classList.toggle('is-active', b.dataset.range === r));
+  loadRankings();
+}
+
+function setRankDate(ds) {
+  if (!ds) { setRankRange(rankRange); return; }           // cleared → fall back to preset
+  rankCustomDate = ds;
+  document.querySelectorAll('.rank-range-btn').forEach(b => b.classList.remove('is-active'));
   loadRankings();
 }
 
