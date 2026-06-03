@@ -20,7 +20,11 @@ $principal = New-ScheduledTaskPrincipal `
   -LogonType Interactive `
   -RunLevel Limited
 
-# ── Task 1: Chrome CDP at logon ──────────────────────────────────────────────
+# ── Task 1: Chrome CDP — ensure it's up ──────────────────────────────────────
+# launch-chrome.ps1 is idempotent (exits immediately if 9222 is already up).
+# Triggers: at logon AND daily at 00:20 (10 min before the scrape). The daily
+# time trigger is the workhorse — an always-on machine that stays logged in
+# never fires a logon event, which is why the logon-only task never ran.
 $chromeScript = Join-Path $PSScriptRoot "launch-chrome.ps1"
 $chromeTask   = "Shero Dashboard - Chrome CDP"
 
@@ -28,10 +32,12 @@ $chromeAction = New-ScheduledTaskAction `
   -Execute "powershell.exe" `
   -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$chromeScript`""
 
-$chromeTrigger = New-ScheduledTaskTrigger -AtLogOn
-$chromeTrigger.Delay = "PT10S"
+$chromeTrigLogon = New-ScheduledTaskTrigger -AtLogOn
+$chromeTrigLogon.Delay = "PT10S"
+$chromeTrigDaily = New-ScheduledTaskTrigger -Daily -At "12:20AM"
 
 $chromeSettings = New-ScheduledTaskSettingsSet `
+  -StartWhenAvailable `
   -ExecutionTimeLimit (New-TimeSpan -Minutes 2) `
   -RestartCount 2 `
   -RestartInterval (New-TimeSpan -Minutes 1)
@@ -39,11 +45,11 @@ $chromeSettings = New-ScheduledTaskSettingsSet `
 Register-ScheduledTask `
   -TaskName $chromeTask `
   -Action $chromeAction `
-  -Trigger $chromeTrigger `
+  -Trigger @($chromeTrigLogon, $chromeTrigDaily) `
   -Settings $chromeSettings `
   -Principal $principal `
   -Force | Out-Null
-Write-Host "[Setup] Registered '$chromeTask' (Chrome auto-launch at logon)."
+Write-Host "[Setup] Registered '$chromeTask' (Chrome up at logon + daily 00:20)."
 
 # ── Task 2: Daily self-healing scrape at 00:30 ───────────────────────────────
 $scrapeScript = Join-Path $PSScriptRoot "run-daily.ps1"
