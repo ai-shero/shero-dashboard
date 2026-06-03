@@ -64,6 +64,26 @@ async function init() {
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  // Per-product daily units-sold rankings (one row per channel/date/rank).
+  // Populated by the scrapers' productRankings output; top N per channel per day.
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS product_rankings (
+      channel TEXT NOT NULL,
+      entry_date TEXT NOT NULL,
+      rank INTEGER NOT NULL,
+      product_name TEXT NOT NULL,
+      units INTEGER,
+      revenue REAL,
+      sku TEXT,
+      fetched_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(channel, entry_date, rank)
+    )
+  `);
+  await db.execute(`
+    CREATE INDEX IF NOT EXISTS idx_product_rankings_lookup
+      ON product_rankings (channel, entry_date)
+  `);
 }
 
 module.exports = { db, init };

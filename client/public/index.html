@@ -376,6 +376,36 @@ body {
 .daily-table .total-col { font-weight: 700; color: var(--accent); font-family: var(--serif); }
 .daily-table .orders-sub { font-size: 10px; color: var(--sub); display: block; margin-top: 1px; font-family: var(--mono); }
 
+/* ─── Rankings (Top products) ─────────────────────────────────────────────────── */
+.rankings-section { margin-bottom: 72px; }
+.rank-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.rank-range-btn {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 7px 14px; border: 1px solid var(--border); background: var(--paper); color: var(--sub);
+  cursor: pointer; border-radius: 2px; transition: var(--transition);
+}
+.rank-range-btn:hover { color: var(--ink); border-color: var(--sub); }
+.rank-range-btn.is-active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.rank-range-label { font-family: var(--mono); font-size: 11px; color: var(--sub); margin-left: 4px; }
+.rank-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 640px) { .rank-grid { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1000px) { .rank-grid { grid-template-columns: repeat(4, 1fr); } }
+.rank-card { border: 1px solid var(--border); background: var(--paper); padding: 16px 18px; }
+.rank-card-head {
+  font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink); padding-bottom: 10px; margin-bottom: 8px;
+  border-bottom: 2px solid var(--border); display: flex; justify-content: space-between; align-items: baseline;
+}
+.rank-card-head .rc-total { color: var(--accent); font-weight: 700; }
+.rank-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.rank-row:last-child { border-bottom: none; }
+.rank-num { font-family: var(--mono); font-size: 11px; color: var(--sub); width: 18px; flex-shrink: 0; }
+.rank-name { flex: 1; font-size: 12.5px; color: var(--ink); line-height: 1.3; }
+.rank-units { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rank-units small { font-weight: 400; color: var(--sub); font-size: 10px; }
+.rank-rev { font-family: var(--mono); font-size: 10px; color: var(--sub); white-space: nowrap; margin-left: 6px; }
+.rank-empty { color: var(--sub); font-size: 12px; padding: 14px 0; text-align: center; font-style: italic; }
+
 /* ─── FAB ────────────────────────────────────────────────────────────────────── */
 .fab {
   position: fixed; bottom: 28px; right: 28px;
@@ -663,6 +693,27 @@ body {
     </div>
   </section>
 
+  <!-- 05. Top products — units sold ranking -->
+  <section class="rankings-section">
+    <div class="section-head">
+      <div class="section-num">05.</div>
+      <div>
+        <div class="section-kicker">Bestsellers</div>
+        <h2 class="section-title">Top products by units sold</h2>
+        <p class="section-lede">Per platform, ranked by units. Switch the window below.</p>
+      </div>
+    </div>
+    <div class="rank-controls">
+      <button class="rank-range-btn" data-range="yesterday" onclick="setRankRange('yesterday')">Yesterday</button>
+      <button class="rank-range-btn is-active" data-range="7d" onclick="setRankRange('7d')">Last 7 days</button>
+      <button class="rank-range-btn" data-range="month" onclick="setRankRange('month')">This month</button>
+      <span class="rank-range-label" id="rankRangeLabel"></span>
+    </div>
+    <div class="rank-grid" id="rankGrid">
+      <div class="rank-card"><div class="rank-card-head">Loading…</div></div>
+    </div>
+  </section>
+
   <div class="colophon">
     <div>Shero Ops · Sales Dashboard</div>
     <div>Set in Source Serif 4 &amp; IBM Plex Mono</div>
@@ -787,7 +838,66 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSummary();
   loadTrend();
   loadScrapeStatus();
+  loadRankings();
 });
+
+/* ─── Rankings (Top products by units) ───────────────────────────────────────── */
+let rankRange = '7d';
+const RANK_CHANNELS = [
+  { id: 'shopify', label: 'Shopify' },
+  { id: 'shopee',  label: 'Shopee'  },
+  { id: 'lazada',  label: 'Lazada'  },
+  { id: 'tiktok',  label: 'TikTok'  },
+];
+
+function mytToday() { return new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10); }
+function shiftDay(ds, n) { const d = new Date(ds + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+
+function rankDateRange() {
+  const today = mytToday();
+  const yesterday = shiftDay(today, -1);
+  if (rankRange === 'yesterday') return { start: yesterday, end: yesterday };
+  if (rankRange === 'month')     return { start: today.slice(0, 8) + '01', end: yesterday };
+  return { start: shiftDay(yesterday, -6), end: yesterday }; // 7d
+}
+
+function setRankRange(r) {
+  rankRange = r;
+  document.querySelectorAll('.rank-range-btn').forEach(b => b.classList.toggle('is-active', b.dataset.range === r));
+  loadRankings();
+}
+
+async function loadRankings() {
+  const { start, end } = rankDateRange();
+  document.getElementById('rankRangeLabel').textContent = start === end ? start : `${start} → ${end}`;
+  const grid = document.getElementById('rankGrid');
+  try {
+    const data = await fetch(`/api/rankings?start=${start}&end=${end}`).then(r => r.json());
+    grid.innerHTML = RANK_CHANNELS.map(ch => {
+      const rows = data.channels[ch.id] || [];
+      const totalUnits = rows.reduce((s, p) => s + (p.units || 0), 0);
+      const body = rows.length
+        ? rows.map(p => `
+            <div class="rank-row">
+              <span class="rank-num">${p.rank}</span>
+              <span class="rank-name">${escapeHtml(p.name)}</span>
+              <span class="rank-units">${p.units}<small> u</small>${p.revenue ? `<span class="rank-rev">RM ${p.revenue.toLocaleString('en-MY', {minimumFractionDigits:0, maximumFractionDigits:0})}</span>` : ''}</span>
+            </div>`).join('')
+        : '<div class="rank-empty">No units sold</div>';
+      return `
+        <div class="rank-card">
+          <div class="rank-card-head"><span>${ch.label}</span>${totalUnits ? `<span class="rc-total">${totalUnits} u</span>` : ''}</div>
+          ${body}
+        </div>`;
+    }).join('');
+  } catch (e) {
+    grid.innerHTML = '<div class="rank-card"><div class="rank-empty">Could not load rankings</div></div>';
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
 
 /* ─── Daily Mode ─────────────────────────────────────────────────────────────── */
 function setDailyMode(on) {

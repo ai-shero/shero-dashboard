@@ -182,17 +182,83 @@ async function _scrapeImpl(date) {
 
     console.log(`[TikTok] Scraped for ${date}: gmv=${gmv}, orders=${orders}, visitors=${visitors}, aov=${aov}`);
 
+    // ── Product rankings (units sold) ─────────────────────────────────────────
+    const productRankings = await fetchProductRankings(page, date);
+
     return {
       totalSales:       gmv,
       grossSales:       gmv,
       orders:           orders  !== null ? Math.round(orders)   : null,
       sessions:         visitors !== null ? Math.round(visitors) : null,
       averageOrderValue: aov,
+      productRankings,
       url:              page.url(),
     };
 
   } finally {
     await page.close();
+  }
+}
+
+/**
+ * Top products by units sold for a single day.
+ * The product-analysis page takes the date range directly in the URL
+ * (timeRange=YYYY-MM-DD|YYYY-MM-DD), so no calendar interaction is needed.
+ * We intercept /insights/seller/ttp/product/list and read stats_v3.total.items_sold.
+ * Returns [{rank, name, units, revenue, sku}] sorted by units desc (units > 0 only).
+ */
+async function fetchProductRankings(page, date) {
+  try {
+    let resolveList;
+    const listPromise = new Promise(res => { resolveList = res; });
+    const onList = async (res) => {
+      if (!res.url().includes('/insights/seller/ttp/product/list')) return;
+      try {
+        const j = await res.json().catch(() => null);
+        if (j?.data?.items) resolveList(j.data.items);
+      } catch (_) {}
+    };
+    page.on('response', onList);
+
+    await page.goto(
+      `${BASE_URL}/compass/product-analysis?shop_region=MY&timeRange=${date}%7C${date}`,
+      { waitUntil: 'domcontentloaded', timeout: 45000 }
+    );
+
+    const items = await Promise.race([
+      listPromise,
+      new Promise(res => setTimeout(() => res(null), 20000)),
+    ]);
+    page.off('response', onList);
+
+    if (!items) {
+      console.warn('[TikTok] Product list not captured for', date);
+      return [];
+    }
+
+    const num = (v) => {
+      if (v == null) return null;
+      if (typeof v === 'object') { const n = parseFloat(v.amount_delimited ?? v.amount); return isNaN(n) ? null : n; }
+      const n = parseFloat(v); return isNaN(n) ? null : n;
+    };
+
+    const ranked = items
+      .map(it => ({
+        name:    it.meta?.product_name || '(unknown)',
+        sku:     it.meta?.product_id || null,
+        units:   Math.round(num(it.stats_v3?.total?.items_sold) || 0),
+        revenue: num(it.stats_v3?.total?.gmv) || 0,
+      }))
+      .filter(p => p.units > 0)
+      .sort((a, b) => b.units - a.units || b.revenue - a.revenue)
+      .slice(0, 10)
+      .map((p, i) => ({ rank: i + 1, ...p }));
+
+    console.log(`[TikTok] Product rankings for ${date}: ${ranked.length} products`);
+    return ranked;
+  } catch (e) {
+    console.warn('[TikTok] Product rankings failed:', e.message);
+    return [];
   }
 }
 

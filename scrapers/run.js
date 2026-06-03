@@ -108,6 +108,24 @@ async function upsertCache(channel, date, result) {
   });
 }
 
+/* ─── product rankings: replace the day's rows atomically ─────────────────── */
+async function upsertRankings(channel, date, rankings) {
+  // Guard: never wipe existing good rows on an empty/failed product scrape.
+  if (!Array.isArray(rankings) || rankings.length === 0) return;
+  await db.execute({
+    sql: 'DELETE FROM product_rankings WHERE channel = ? AND entry_date = ?',
+    args: [channel, date],
+  });
+  for (const r of rankings) {
+    await db.execute({
+      sql: `INSERT INTO product_rankings (channel, entry_date, rank, product_name, units, revenue, sku, fetched_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+      args: [channel, date, r.rank, r.name, r.units ?? null, r.revenue ?? null, r.sku ?? null],
+    });
+  }
+  console.log(`[Scrape] ${channel} rankings ✓ — ${rankings.length} products`);
+}
+
 /* ─── one date, all channels ─────────────────────────────────────────────── */
 async function runForDate(date) {
   console.log(`\n[Scrape] ===== ${date} =====`);
@@ -124,6 +142,7 @@ async function runForDate(date) {
         await upsertCache(id, date, result);
         anySuccess = true;
         console.log(`[Scrape] ${id} ✓ — RM ${revenue} / ${orders} orders`);
+        await upsertRankings(id, date, result.productRankings);
       } else {
         console.warn(`[Scrape] ${id} — could not parse data. Raw:`, result.rawText?.slice(0, 300));
       }
