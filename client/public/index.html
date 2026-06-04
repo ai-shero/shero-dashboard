@@ -79,6 +79,13 @@ body {
 @media (min-width: 480px) { .period-tab { margin-right: 20px; } }
 .period-tab:last-child { margin-right: 0; }
 .period-tab.active { color: var(--ink); font-weight: 700; border-bottom-color: var(--accent); }
+.month-pick {
+  font-family: var(--mono); font-size: 11px; color: var(--sub); margin-left: 16px;
+  padding: 5px 8px; border: 1px solid var(--border); background: var(--paper);
+  border-radius: 2px; cursor: pointer; transition: var(--transition);
+}
+.month-pick:hover { color: var(--ink); border-color: var(--sub); }
+.month-pick.active { color: var(--ink); border-color: var(--accent); font-weight: 700; }
 
 .header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
@@ -519,6 +526,7 @@ body {
     <button class="period-tab" data-period="mtd">MTD</button>
     <button class="period-tab" data-period="ytd">YTD</button>
     <button class="period-tab" data-period="daily">History</button>
+    <input type="month" class="month-pick" id="monthPick" onchange="selectMonth(this.value)" title="View a full month">
   </nav>
   <div class="header-actions">
     <button class="wa-btn" id="waBtn" onclick="copyWhatsApp()">
@@ -826,6 +834,7 @@ const COVER_GRAD = 'linear-gradient(155deg,#c61f3a 0%,#8b1226 45%,#4a0c18 100%)'
 let currentPeriod = 'today';
 let summaryData   = null;
 let trendChart    = null;
+let customLabel   = null;   // label for a picked month (e.g. "May 2026")
 
 /* ─── Init ───────────────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -836,10 +845,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const _rd = document.getElementById('rankDate');
   if (_rd) _rd.max = new Date(Date.now() + 8*3600000 - 86400000).toISOString().slice(0, 10);
 
+  // Month picker: cap at current month
+  const _mp = document.getElementById('monthPick');
+  if (_mp) _mp.max = new Date(Date.now() + 8*3600000).toISOString().slice(0, 7);
+
   document.querySelectorAll('.period-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.period-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      // leaving month view → clear the month picker selection
+      customLabel = null;
+      const mp = document.getElementById('monthPick');
+      if (mp) { mp.value = ''; mp.classList.remove('active'); }
       currentPeriod = btn.dataset.period;
       if (currentPeriod === 'daily') {
         setDailyMode(true);
@@ -860,7 +877,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* ─── Rankings (Top products by units) ───────────────────────────────────────── */
 let rankRange = '7d';
-let rankCustomDate = null;   // when set, view this single day
+let rankCustomDate = null;    // when set, view this single day
+let rankCustomRange = null;   // when set, view this range (e.g. a whole month)
 const RANK_CHANNELS = [
   { id: 'shopify', label: 'Shopify' },
   { id: 'shopee',  label: 'Shopee'  },
@@ -872,7 +890,8 @@ function mytToday() { return new Date(Date.now() + 8 * 3600000).toISOString().sl
 function shiftDay(ds, n) { const d = new Date(ds + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 
 function rankDateRange() {
-  if (rankCustomDate) return { start: rankCustomDate, end: rankCustomDate };
+  if (rankCustomRange) return rankCustomRange;
+  if (rankCustomDate)  return { start: rankCustomDate, end: rankCustomDate };
   const today = mytToday();
   const yesterday = shiftDay(today, -1);
   if (rankRange === 'yesterday') return { start: yesterday, end: yesterday };
@@ -883,6 +902,7 @@ function rankDateRange() {
 function setRankRange(r) {
   rankRange = r;
   rankCustomDate = null;                                  // clear any picked day
+  rankCustomRange = null;                                 // clear any month view
   document.getElementById('rankDate').value = '';
   document.querySelectorAll('.rank-range-btn').forEach(b => b.classList.toggle('is-active', b.dataset.range === r));
   loadRankings();
@@ -891,7 +911,35 @@ function setRankRange(r) {
 function setRankDate(ds) {
   if (!ds) { setRankRange(rankRange); return; }           // cleared → fall back to preset
   rankCustomDate = ds;
+  rankCustomRange = null;
   document.querySelectorAll('.rank-range-btn').forEach(b => b.classList.remove('is-active'));
+  loadRankings();
+}
+
+/* ─── Month selector — drives summary totals AND rankings ────────────────────── */
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function selectMonth(ym) {
+  if (!ym) return;                                        // cleared
+  const [y, m] = ym.split('-').map(Number);
+  const start = `${ym}-01`;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  let end = `${ym}-${String(lastDay).padStart(2, '0')}`;
+  const yesterday = shiftDay(mytToday(), -1);
+  if (end > yesterday) end = yesterday;                   // don't include incomplete/future days
+  customLabel = `${MONTH_NAMES[m - 1]} ${y}`;
+
+  // Summary
+  document.querySelectorAll('.period-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('monthPick').classList.add('active');
+  currentPeriod = `${start}:${end}`;
+  setDailyMode(false);
+  loadSummary();
+
+  // Rankings — same month
+  rankCustomDate = null;
+  rankCustomRange = { start, end };
+  document.querySelectorAll('.rank-range-btn').forEach(b => b.classList.remove('is-active'));
+  document.getElementById('rankDate').value = '';
   loadRankings();
 }
 
@@ -1112,7 +1160,9 @@ async function loadSummary() {
 
 function renderSummary(data) {
   const { total, channels, start, end, period } = data;
+  // customLabel (a picked month, e.g. "May 2026") overrides the preset names.
   const pLabels = { today: 'Yesterday', mtd: 'Month to date', ytd: 'Year to date' };
+  const label = customLabel || pLabels[period] || period;
 
   // Status date range
   document.getElementById('dateRange').textContent =
@@ -1120,11 +1170,11 @@ function renderSummary(data) {
 
   // Cover kicker
   document.getElementById('coverKicker').textContent =
-    `The cover story · ${period === 'today' ? formatDate(start) : (pLabels[period] || period)}`;
+    `The cover story · ${customLabel || (period === 'today' ? formatDate(start) : (pLabels[period] || period))}`;
 
   // Cover panel label
   document.getElementById('coverPanelLabel').textContent =
-    `↘ ${pLabels[period] || period}'s revenue`;
+    `↘ ${label}'s revenue`;
 
   // Cover headline (dynamic)
   const sorted = channels ? [...channels].sort((a, b) => b.revenue - a.revenue) : [];
@@ -1142,7 +1192,7 @@ function renderSummary(data) {
   document.getElementById('kpiRevenue').textContent = formatMYR(total.revenue);
   document.getElementById('kpiOrders').textContent  = total.orders.toLocaleString();
   document.getElementById('kpiAov').textContent     = formatMYR(aov);
-  document.getElementById('kpiRevenueLabel').textContent = pLabels[period] || period;
+  document.getElementById('kpiRevenueLabel').textContent = label;
 
   // Cover panel big number
   document.getElementById('coverPanelRevenue').textContent =
