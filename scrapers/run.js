@@ -148,9 +148,9 @@ async function runForDate(date) {
       }
     } catch (err) {
       if (err.message?.startsWith('NOT_LOGGED_IN')) {
-        console.error(`[Scrape] ${id} — not logged in. Open the scraper browser (npm run start-browser) and log in to ${id}.`);
+        console.error(`[Scrape] ${id} — not logged in. Re-login with: npm run login  (log in to ${id}, press ENTER)`);
       } else if (err.message?.includes('remote debugging')) {
-        console.error(`[Scrape] ${id} — Chrome not running! Start it with: npm run start-browser`);
+        console.error(`[Scrape] ${id} — browser launch problem. Try: npm run login`);
       } else {
         console.error(`[Scrape] ${id} error:`, err.message);
       }
@@ -195,12 +195,25 @@ async function runAll(arg1, arg2) {
     console.log(`[Scrape] Self-healing — ${dates.length} day(s): ${dates[0]}..${dates[dates.length - 1]}`);
   }
 
-  for (const date of dates) {
-    await runForDate(date);
+  const cdp = require('./cdp');
+  let wroteAny = false;
+  try {
+    for (const date of dates) {
+      if (await runForDate(date)) wroteAny = true;
+    }
+    // Only refresh the staleness heartbeat when real data landed. If every
+    // channel failed (e.g. expired logins), leave the old heartbeat so the
+    // dashboard's "data stale" badge surfaces the problem instead of hiding it.
+    if (wroteAny) {
+      await writeHeartbeat();
+    } else {
+      console.error('[Scrape] No channel produced data — heartbeat left untouched so the dashboard flags it. Re-login may be needed: node scrapers/login.js');
+    }
+  } finally {
+    // Graceful close flushes cookies/sessions back to the profile on disk.
+    await cdp.closeBrowser();
   }
-
-  await writeHeartbeat();
-  console.log('\n[Scrape] Done.');
+  console.log(`\n[Scrape] Done. ${wroteAny ? '' : '(no data written)'}`);
 }
 
 module.exports = { runAll };

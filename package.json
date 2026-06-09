@@ -7,7 +7,7 @@
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
     "scrape": "node scrapers/run.js",
-    "start-browser": "powershell -ExecutionPolicy Bypass -File scrapers\\launch-chrome.ps1",
+    "login": "node scrapers/login.js",
     "install-startup": "powershell -ExecutionPolicy Bypass -File scrapers\\install-startup.ps1",
     "login:tiktok": "node scrapers/tiktok.js --login"
   },
