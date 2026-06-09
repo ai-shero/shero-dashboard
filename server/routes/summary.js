@@ -89,7 +89,7 @@ router.get('/', async (req, res) => {
 
 // GET /api/summary/daily?days=30  — per-date, per-channel breakdown
 router.get('/daily', async (req, res) => {
-  const days = Math.min(parseInt(req.query.days || '30'), 90);
+  const days = Math.min(parseInt(req.query.days || '30'), 400);
   const myt = new Date(Date.now() + 8 * 3600000);
   const endDate = new Date(myt.getTime() - 86400000).toISOString().slice(0, 10); // yesterday
   const startDate = new Date(new Date(endDate).getTime() - (days - 1) * 86400000).toISOString().slice(0, 10);
