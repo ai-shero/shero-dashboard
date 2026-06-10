@@ -163,4 +163,27 @@ router.get('/trend', async (req, res) => {
   res.json({ trend });
 });
 
+// GET /api/summary/channel-health — last data day per channel, from cached_data.
+// Silent-failure detector: the global heartbeat refreshes if ANY channel lands
+// data, so a single channel (e.g. expired Lazada login) can flatline while the
+// stale badge stays green. The frontend compares last_date per scraped channel
+// against yesterday and warns when one falls >=2 days behind.
+router.get('/channel-health', async (req, res) => {
+  try {
+    const result = await db.execute(
+      `SELECT channel, MAX(entry_date) AS last_date, MAX(fetched_at) AS last_fetch
+       FROM cached_data GROUP BY channel`
+    );
+    res.json({
+      channels: result.rows.map(r => ({
+        channel: r.channel,
+        last_date: r.last_date,
+        last_fetch: r.last_fetch,
+      })),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
