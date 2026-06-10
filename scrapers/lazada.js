@@ -297,12 +297,20 @@ async function scrape(date) {
 
   try {
     await page.goto(HOME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(3000);
+
+    // Lazada briefly lands on /login then AUTO-REDIRECTS to the dashboard when a
+    // valid session exists — that redirect can take 5-10s. Wait for it to settle
+    // before judging login state; a hasty check (old: fixed 3s) caught the
+    // momentary /login URL and threw a false NOT_LOGGED_IN.
+    const onLoginPage = () => /\/(login|register|signin)/.test(new URL(page.url()).pathname);
+    try {
+      await page.waitForURL(() => !onLoginPage(), { timeout: 18000 });
+    } catch (_) { /* still on login after 18s → genuinely logged out */ }
+    await page.waitForTimeout(2000);
     console.log('[Lazada] Landed on:', page.url());
 
-    // Check if logged in
-    if (page.url().includes('/login') || page.url().includes('/register')) {
-      throw new Error('NOT_LOGGED_IN: Open the scraper browser and log in to Lazada.');
+    if (onLoginPage()) {
+      throw new Error('NOT_LOGGED_IN: run `npm run login` and sign in to Lazada.');
     }
 
     // Capture per-product units sold from the BA "Product Performance" report

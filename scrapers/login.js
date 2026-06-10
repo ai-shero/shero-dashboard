@@ -32,16 +32,20 @@ const LOGINS = [
     console.log(`[Login]   ${l.id.padEnd(8)} → ${l.url}`);
   }
 
-  console.log('\n[Login] Log in to each tab (Shopify, Shopee, Lazada, TikTok).');
-  console.log('[Login] When all four show their dashboards, come back here and press ENTER.');
+  console.log('\n[Login] Log in to each tab (Lazada + TikTok especially; Shopify/Shopee usually still logged in).');
+  console.log('[Login] When done, either press ENTER here OR just close the Chrome window — both save your sessions.');
 
   await new Promise(resolve => {
-    process.stdin.resume();
-    process.stdin.once('data', resolve);
+    let settled = false;
+    const finish = () => { if (!settled) { settled = true; resolve(); } };
+    // Finish when the user closes the Chrome window themselves…
+    ctx.on('close', finish);
+    // …or when they press ENTER in a terminal (if run interactively).
+    try { process.stdin.resume(); process.stdin.once('data', finish); } catch { /* no tty */ }
   });
 
   console.log('[Login] Saving sessions and closing…');
-  await cdp.closeBrowser();
-  console.log('[Login] Done. Sessions saved to the profile. You can close this window.');
+  await cdp.closeBrowser();   // graceful close flushes cookies (no-op if window already closed)
+  console.log('[Login] Done. Sessions saved to the profile.');
   process.exit(0);
 })().catch(err => { console.error('[Login] Failed:', err); process.exit(1); });
