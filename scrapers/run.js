@@ -127,6 +127,20 @@ async function upsertRankings(channel, date, rankings) {
 }
 
 /* ─── one date, all channels ─────────────────────────────────────────────── */
+async function scrapeAndStore(id, scraper, date) {
+  const result = await scraper.scrape(date);
+  const revenue = result.totalSales ?? result.income ?? result.revenue ?? result.grossSales;
+  const orders  = result.ordersPlaced ?? result.orders;
+  if (revenue != null && orders != null) {
+    await upsertCache(id, date, result);
+    console.log(`[Scrape] ${id} ✓ — RM ${revenue} / ${orders} orders`);
+    await upsertRankings(id, date, result.productRankings);
+    return true;
+  }
+  console.warn(`[Scrape] ${id} — could not parse data. Raw:`, result.rawText?.slice(0, 300));
+  return false;
+}
+
 async function runForDate(date) {
   console.log(`\n[Scrape] ===== ${date} =====`);
   let anySuccess = false;
@@ -134,20 +148,19 @@ async function runForDate(date) {
   for (const { id, scraper } of SCRAPERS) {
     try {
       console.log(`[Scrape] ${id}...`);
-      const result = await scraper.scrape(date);
-
-      const revenue = result.totalSales ?? result.income ?? result.revenue ?? result.grossSales;
-      const orders  = result.ordersPlaced ?? result.orders;
-      if (revenue != null && orders != null) {
-        await upsertCache(id, date, result);
-        anySuccess = true;
-        console.log(`[Scrape] ${id} ✓ — RM ${revenue} / ${orders} orders`);
-        await upsertRankings(id, date, result.productRankings);
-      } else {
-        console.warn(`[Scrape] ${id} — could not parse data. Raw:`, result.rawText?.slice(0, 300));
-      }
+      if (await scrapeAndStore(id, scraper, date)) anySuccess = true;
     } catch (err) {
       if (err.message?.startsWith('NOT_LOGGED_IN')) {
+        // Try an unattended re-login (credentials in .env), then retry once.
+        const { autoLogin } = require('./auto-login');
+        if (await autoLogin(id)) {
+          try {
+            if (await scrapeAndStore(id, scraper, date)) anySuccess = true;
+            continue;
+          } catch (e2) {
+            console.error(`[Scrape] ${id} retry after auto-login failed:`, e2.message);
+          }
+        }
         console.error(`[Scrape] ${id} — not logged in. Re-login with: npm run login  (log in to ${id}, press ENTER)`);
       } else if (err.message?.includes('remote debugging')) {
         console.error(`[Scrape] ${id} — browser launch problem. Try: npm run login`);
