@@ -83,15 +83,27 @@ async function upsertCache(channel, date, result) {
             fetched_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
           ON CONFLICT(channel, entry_date) DO UPDATE SET
-            revenue=excluded.revenue, orders=excluded.orders,
-            gross_sales=excluded.gross_sales, discounts=excluded.discounts,
-            returns=excluded.returns, net_sales=excluded.net_sales,
-            shipping_charges=excluded.shipping_charges, return_fees=excluded.return_fees,
-            taxes=excluded.taxes, orders_fulfilled=excluded.orders_fulfilled,
-            avg_order_value=excluded.avg_order_value, sessions=excluded.sessions,
-            conversion_rate=excluded.conversion_rate,
-            returning_customer_rate=excluded.returning_customer_rate,
-            ad_spend=excluded.ad_spend, clicks=excluded.clicks, roas=excluded.roas,
+            -- MERGE, don't blindly overwrite: a re-scrape that partially fails
+            -- (e.g. Shopee's Key Metrics panel didn't load → orders/gross come
+            -- back 0/null while income still parsed) must NOT replace good data
+            -- with zeros. Keep the existing value whenever the new one is 0/null.
+            revenue=CASE WHEN COALESCE(excluded.revenue,0)<>0 THEN excluded.revenue ELSE cached_data.revenue END,
+            orders=CASE WHEN COALESCE(excluded.orders,0)<>0 THEN excluded.orders ELSE cached_data.orders END,
+            gross_sales=CASE WHEN COALESCE(excluded.gross_sales,0)<>0 THEN excluded.gross_sales ELSE cached_data.gross_sales END,
+            discounts=CASE WHEN COALESCE(excluded.discounts,0)<>0 THEN excluded.discounts ELSE cached_data.discounts END,
+            returns=CASE WHEN COALESCE(excluded.returns,0)<>0 THEN excluded.returns ELSE cached_data.returns END,
+            net_sales=CASE WHEN COALESCE(excluded.net_sales,0)<>0 THEN excluded.net_sales ELSE cached_data.net_sales END,
+            shipping_charges=CASE WHEN COALESCE(excluded.shipping_charges,0)<>0 THEN excluded.shipping_charges ELSE cached_data.shipping_charges END,
+            return_fees=CASE WHEN COALESCE(excluded.return_fees,0)<>0 THEN excluded.return_fees ELSE cached_data.return_fees END,
+            taxes=CASE WHEN COALESCE(excluded.taxes,0)<>0 THEN excluded.taxes ELSE cached_data.taxes END,
+            orders_fulfilled=CASE WHEN COALESCE(excluded.orders_fulfilled,0)<>0 THEN excluded.orders_fulfilled ELSE cached_data.orders_fulfilled END,
+            avg_order_value=CASE WHEN COALESCE(excluded.avg_order_value,0)<>0 THEN excluded.avg_order_value ELSE cached_data.avg_order_value END,
+            sessions=CASE WHEN COALESCE(excluded.sessions,0)<>0 THEN excluded.sessions ELSE cached_data.sessions END,
+            conversion_rate=CASE WHEN COALESCE(excluded.conversion_rate,0)<>0 THEN excluded.conversion_rate ELSE cached_data.conversion_rate END,
+            returning_customer_rate=CASE WHEN COALESCE(excluded.returning_customer_rate,0)<>0 THEN excluded.returning_customer_rate ELSE cached_data.returning_customer_rate END,
+            ad_spend=CASE WHEN COALESCE(excluded.ad_spend,0)<>0 THEN excluded.ad_spend ELSE cached_data.ad_spend END,
+            clicks=CASE WHEN COALESCE(excluded.clicks,0)<>0 THEN excluded.clicks ELSE cached_data.clicks END,
+            roas=CASE WHEN COALESCE(excluded.roas,0)<>0 THEN excluded.roas ELSE cached_data.roas END,
             fetched_at=excluded.fetched_at`,
     args: [
       channel, date,
