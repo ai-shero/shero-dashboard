@@ -220,8 +220,13 @@ async function fetchProductRankings(page, date) {
     };
     page.on('response', onList);
 
+    // EXCLUSIVE end date: a single day is date|date+1, same as the overview API.
+    // Using date|date (zero-width) made TikTok ignore it and return a default
+    // rolling window — so every day stored the SAME snapshot, and range totals
+    // multiplied one day's products across N days (e.g. 6u → bogus 42u/week).
+    const nextDay = (() => { const x = new Date(date + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10); })();
     await page.goto(
-      `${BASE_URL}/compass/product-analysis?shop_region=MY&timeRange=${date}%7C${date}`,
+      `${BASE_URL}/compass/product-analysis?shop_region=MY&timeRange=${date}%7C${nextDay}`,
       { waitUntil: 'domcontentloaded', timeout: 45000 }
     );
 
