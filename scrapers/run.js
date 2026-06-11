@@ -131,13 +131,20 @@ async function scrapeAndStore(id, scraper, date) {
   const result = await scraper.scrape(date);
   const revenue = result.totalSales ?? result.income ?? result.revenue ?? result.grossSales;
   const orders  = result.ordersPlaced ?? result.orders;
-  if (revenue != null && orders != null) {
+  // Store as long as we got a revenue figure. Previously we required orders too,
+  // which dropped whole rows when Lazada's Key-Metrics carousel returned a null
+  // order count (intermittent) — losing real revenue. Now revenue alone is enough;
+  // a missing order count persists as 0 (upsertCache default) and is logged.
+  if (revenue != null) {
+    if (orders == null) {
+      console.warn(`[Scrape] ${id} — order count unavailable, storing revenue only (orders=0).`);
+    }
     await upsertCache(id, date, result);
-    console.log(`[Scrape] ${id} ✓ — RM ${revenue} / ${orders} orders`);
+    console.log(`[Scrape] ${id} ✓ — RM ${revenue} / ${orders ?? 0} orders`);
     await upsertRankings(id, date, result.productRankings);
     return true;
   }
-  console.warn(`[Scrape] ${id} — could not parse data. Raw:`, result.rawText?.slice(0, 300));
+  console.warn(`[Scrape] ${id} — could not parse data (no revenue). Raw:`, result.rawText?.slice(0, 300));
   return false;
 }
 
