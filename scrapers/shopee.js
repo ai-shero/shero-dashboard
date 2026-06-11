@@ -230,29 +230,69 @@ async function scrapeIncome(page, date) {
   }
 }
 
-/* ─── product rankings (units sold) ──────────────────────────────────────── */
-// Business Insights → Product Performance. The /api/mydata/v4/product/performance/
-// endpoint is date-filterable via unix start/end. We pass the session token
-// (SPC_CDS, captured during the main scrape) and fetch the target day directly
-// from the current shopee-origin page — no extra navigation. paid_units = units sold.
+/* ─── Dashboard APIs (key metrics + product rankings) ─────────────────────── */
+// The datacenter/overview dashboard is backed by /api/mydata/v3/dashboard/* APIs
+// that take a unix day range. This is far more reliable than scraping the page
+// text (which intermittently returned nothing for older dates). A single past day
+// is period=day with start=MYT-midnight and end=NEXT-day-midnight (exclusive end).
+
+function dayRangeUnix(date) {
+  const [y, m, d] = date.split('-').map(Number);
+  const start = Math.floor(Date.UTC(y, m - 1, d) / 1000) - 28800; // 00:00 MYT
+  return { start, end: start + 86400 };                            // exclusive end
+}
+
+// Shopee's dashboard API rejects period=day for YESTERDAY (the most recent
+// complete day) with code 60001 — yesterday must use period=yesterday_realtime.
+// Older days use period=day. (yesterday_realtime ignores the date range and
+// always returns yesterday, so it must NOT be used for older days.)
+function shopeePeriod(date) {
+  const yesterday = new Date(Date.now() + 8 * 3600000 - 86400000).toISOString().slice(0, 10);
+  return date === yesterday ? 'yesterday_realtime' : 'day';
+}
+
+// Orders / gross / visitors / AOV / conversion for the day, from the API.
+async function scrapeKeyMetrics(page, date, spc) {
+  if (!spc) { console.warn('[Shopee] No SPC_CDS — cannot fetch key metrics'); return {}; }
+  const { start, end } = dayRangeUnix(date);
+  const period = shopeePeriod(date);
+  const r = await page.evaluate(async ({ spc, start, end, period }) => {
+    const url = `/api/mydata/v3/dashboard/key-metrics/?SPC_CDS=${spc}&SPC_CDS_VER=2`
+      + `&start_time=${start}&end_time=${end}&period=${period}&fetag=fetag`;
+    try { const j = await fetch(url, { credentials: 'include' }).then(r => r.json()); return j.code === 0 ? j.result : { __err: j.code }; }
+    catch (e) { return { __err: e.message }; }
+  }, { spc, start, end, period });
+
+  if (!r || r.__err != null) { console.warn('[Shopee] key-metrics API failed:', r && r.__err); return {}; }
+  const v = k => (r[k] && typeof r[k].value === 'number') ? r[k].value : null;
+  const convRatio = v('shop_uv_to_paid_buyers_rate'); // API returns a 0..1 ratio
+  return {
+    grossSales:        v('paid_gmv'),
+    orders:            v('paid_orders'),
+    sessions:          v('shop_uv'),
+    clicks:            v('product_clicks'),
+    averageOrderValue: v('paid_sales_per_order'),
+    conversionRate:    convRatio != null ? +(convRatio * 100).toFixed(2) : null,
+  };
+}
+
+// Top products by paid units for the day. paid (not confirmed) so it reflects
+// the day's actual sales; confirmed_* lags and read 0 for recent days.
 async function scrapeProductRankings(page, date, spc) {
   try {
-    const [y, m, d] = date.split('-').map(Number);
-    const start = Math.floor(Date.UTC(y, m - 1, d, -8, 0, 0) / 1000); // 00:00 MYT
-    const end = start + 86399;
-
     if (!spc) { console.warn('[Shopee] No SPC_CDS — skipping product rankings'); return []; }
-
-    const items = await page.evaluate(async ({ spc, start, end }) => {
-      const url = `/api/mydata/v4/product/performance/?SPC_CDS=${spc}&SPC_CDS_VER=2`
-        + `&start_time=${start}&end_time=${end}&period=real_time&keyword=`
-        + `&category_type=shopee&category_id=-1&page_size=50&page_num=1`
-        + `&order_type=confirmed&order_by=confirmed_sales.desc`;
+    const { start, end } = dayRangeUnix(date);
+    const period = shopeePeriod(date);
+    const items = await page.evaluate(async ({ spc, start, end, period }) => {
+      const url = `/api/mydata/v3/dashboard/product-rankings/?SPC_CDS=${spc}&SPC_CDS_VER=2`
+        + `&start_time=${start}&end_time=${end}&period=${period}`
+        + `&category_type=shopee&category_id=-1&page_size=20&page_num=1`
+        + `&order_type=paid&order_by=paid_units.desc`;
       try { const r = await fetch(url, { credentials: 'include' }); const j = await r.json(); return j?.result?.items || null; }
       catch (_) { return null; }
-    }, { spc, start, end });
+    }, { spc, start, end, period });
 
-    if (!items) { console.warn('[Shopee] Product performance fetch failed'); return []; }
+    if (!items) { console.warn('[Shopee] Product rankings fetch failed'); return []; }
 
     const ranked = items
       .map(it => ({
@@ -297,101 +337,15 @@ async function scrape(date) {
       throw new Error('NOT_LOGGED_IN: Open the scraper browser and log in to Shopee.');
     }
 
-    await page.goto(INSIGHT_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(3000);
+    // Visit the overview dashboard so its mydata APIs (and the SPC_CDS token) are
+    // available, then read the day's metrics straight from the API — no fragile
+    // date-picker / DOM scraping.
+    await page.goto(INSIGHT_URL + 'overview', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(4000);
     console.log('[Shopee] On page:', page.url());
 
-    // Wait for Key Metrics section
-    try {
-      await page.waitForFunction(
-        () => document.body.innerText.includes('Key Metrics'),
-        { timeout: 20000 }
-      );
-    } catch (_) {
-      console.warn('[Shopee] Key Metrics did not load in time — proceeding anyway');
-    }
-
-    await selectDate(page, date);
-    await selectOrderType(page);
-
-    // Scroll to trigger lazy-loaded sections
-    const pageHeight = await page.evaluate(() => document.body.scrollHeight);
-    const steps = Math.ceil(pageHeight / 600);
-    for (let s = 0; s <= steps; s++) {
-      await page.evaluate(pos => window.scrollTo(0, pos), s * 600);
-      await page.waitForTimeout(300);
-    }
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.waitForTimeout(1000);
-
-    const data = await page.evaluate(() => {
-      const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG']);
-      function allTextNodes(root) {
-        const texts = [];
-        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-        let node;
-        while ((node = walker.nextNode())) {
-          if (SKIP_TAGS.has(node.parentElement?.tagName)) continue;
-          const v = node.nodeValue.trim();
-          if (v && v.length < 300) texts.push(v);
-        }
-        for (const el of root.querySelectorAll('*')) {
-          if (el.shadowRoot) texts.push(...allTextNodes(el.shadowRoot));
-        }
-        return texts;
-      }
-
-      const tokens = allTextNodes(document.body);
-      const anchor = Math.max(0, tokens.indexOf('Key Metrics'));
-
-      function findRM(label, from) {
-        for (let i = from; i < tokens.length; i++) {
-          if (tokens[i] !== label) continue;
-          for (let j = i + 1; j < Math.min(i + 25, tokens.length); j++) {
-            if (tokens[j] === 'RM' && /^[\d,]+\.?\d*$/.test(tokens[j + 1] || '')) {
-              return parseFloat(tokens[j + 1].replace(/,/g, ''));
-            }
-          }
-        }
-        return null;
-      }
-
-      function findCount(label, from) {
-        for (let i = from; i < tokens.length; i++) {
-          if (tokens[i] !== label) continue;
-          for (let j = i + 1; j < Math.min(i + 25, tokens.length); j++) {
-            if (/^\d{1,7}$/.test(tokens[j].replace(/,/g, ''))) {
-              const n = parseInt(tokens[j].replace(/,/g, ''), 10);
-              if (n < 10000000) return n;
-            }
-          }
-        }
-        return null;
-      }
-
-      function findPct(label, from) {
-        for (let i = from; i < tokens.length; i++) {
-          if (tokens[i] !== label) continue;
-          for (let j = i + 1; j < Math.min(i + 25, tokens.length); j++) {
-            if (/^\d+\.?\d*$/.test(tokens[j]) && tokens[j + 1] === '%') {
-              return parseFloat(tokens[j]);
-            }
-          }
-        }
-        return null;
-      }
-
-      const revenue        = findRM('Sales', anchor);
-      const orders         = findCount('Orders', anchor);
-      const sessions       = findCount('Visitors', anchor);
-      const clicks         = findCount('Product Clicks', anchor);
-      const conversionRate = findPct('Order Conversion Rate', anchor);
-
-      return {
-        grossSales: revenue,
-        orders, sessions, clicks, conversionRate,
-      };
-    });
+    const data = await scrapeKeyMetrics(page, date, spcCds);
+    console.log(`[Shopee] Key metrics for ${date}: orders=${data.orders}, gross=${data.grossSales}, visitors=${data.sessions}, aov=${data.averageOrderValue}, cvr=${data.conversionRate}`);
 
     console.log('[Shopee] Scraping ad spend...');
     const adSpend = await scrapeAdSpend(page, date);
