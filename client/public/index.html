@@ -235,6 +235,7 @@ table.ch tbody tr:hover td{background:var(--bg)}
     <button class="period-tab" data-period="ytd">YTD</button>
     <button class="period-tab" data-period="daily">History</button>
     <input type="month" class="month-pick" id="monthPick" onchange="selectMonth(this.value)" title="View a full month">
+    <input type="date" class="month-pick" id="dayPick" onchange="selectDay(this.value)" title="View a single day">
   </nav>
   <nav class="roll-group" id="rollGroup" title="Rolling windows">
     <button class="roll-tab" data-roll="7">7D</button>
@@ -456,6 +457,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('mDate').value=mytToday();
   const _rd=document.getElementById('rankDate'); if(_rd)_rd.max=shiftDay(mytToday(),-1);
   const _mp=document.getElementById('monthPick'); if(_mp)_mp.max=mytToday().slice(0,7);
+  const _dp=document.getElementById('dayPick'); if(_dp)_dp.max=shiftDay(mytToday(),-1);
 
   document.querySelectorAll('.period-tab').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -488,6 +490,7 @@ function clearActive(){
   document.querySelectorAll('.roll-tab').forEach(b=>b.classList.remove('active'));
   customLabel=null;
   const mp=document.getElementById('monthPick'); if(mp){mp.value='';mp.classList.remove('active');}
+  const dp=document.getElementById('dayPick'); if(dp){dp.value='';dp.classList.remove('active');}
 }
 
 /* ─── Daily data (deltas / sparklines / chart) ───────────── */
@@ -710,11 +713,28 @@ function selectMonth(ym){
   document.querySelectorAll('.period-tab').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.roll-tab').forEach(b=>b.classList.remove('active'));
   document.getElementById('monthPick').classList.add('active');
+  const dp=document.getElementById('dayPick'); if(dp){dp.value='';dp.classList.remove('active');}
   SEL={type:'tab',period:`${start}:${end}`};
   setDailyMode(false); loadSummary();
   rankCustomDate=null; rankCustomRange={start,end};
   document.querySelectorAll('.rank-range-btn').forEach(b=>b.classList.remove('is-active'));
   document.getElementById('rankDate').value=''; loadRankings();
+}
+
+/* ─── Day selector — drives summary AND rankings for one day ──── */
+function selectDay(ds){
+  if(!ds)return;
+  customLabel=formatDate(ds);
+  document.querySelectorAll('.period-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.roll-tab').forEach(b=>b.classList.remove('active'));
+  const mp=document.getElementById('monthPick'); if(mp){mp.value='';mp.classList.remove('active');}
+  document.getElementById('dayPick').classList.add('active');
+  SEL={type:'tab',period:`${ds}:${ds}`};
+  setDailyMode(false); loadSummary();
+  // rankings — same day
+  rankCustomDate=ds; rankCustomRange=null;
+  document.querySelectorAll('.rank-range-btn').forEach(b=>b.classList.remove('is-active'));
+  document.getElementById('rankDate').value=ds; loadRankings();
 }
 
 /* ─── Daily / History mode ───────────────────────────────── */
