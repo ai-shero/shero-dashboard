@@ -23,15 +23,18 @@ router.get('/scrape-status', async (req, res) => {
   res.json(val ? JSON.parse(val) : null);
 });
 
-// GET /api/settings — return non-sensitive settings (masked tokens)
+// GET /api/settings — return non-sensitive settings. Secrets are NEVER sent to
+// the browser, only a boolean `<key>_set` flag. (The old check matched keys
+// containing 'token', but the key is shopify_client_SECRET — so a stored secret
+// would have been returned in plaintext, and the _set flag never emitted.)
 router.get('/', async (req, res) => {
   const keys = ['shopify_store', 'shopify_client_secret', 'pos_api_url'];
   const result = {};
   for (const key of keys) {
     const val = await getSetting(key);
-    if (key.includes('token') && val) {
-      result[key] = val.slice(0, 8) + '…' + val.slice(-4);
-      result[key + '_set'] = true;
+    if (/secret|token|password/.test(key)) {
+      result[key] = '';
+      result[key + '_set'] = !!val;
     } else {
       result[key] = val || '';
     }

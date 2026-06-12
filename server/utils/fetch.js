@@ -25,6 +25,11 @@ function apiFetch(url, options = {}) {
       agent
     };
 
+    // Hard timeout: /api/summary awaits these in a Promise.all, so a hanging
+    // upstream (e.g. POS API cold start gone wrong) would hang the whole
+    // dashboard load without this.
+    const timeoutMs = options.timeout ?? 15000;
+
     const req = lib.request(reqOptions, (resp) => {
       const chunks = [];
       resp.on('data', c => chunks.push(c));
@@ -40,6 +45,9 @@ function apiFetch(url, options = {}) {
       });
     });
 
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`apiFetch timeout after ${timeoutMs}ms: ${url}`));
+    });
     req.on('error', reject);
     if (options.body) req.write(
       typeof options.body === 'string' ? options.body : JSON.stringify(options.body)

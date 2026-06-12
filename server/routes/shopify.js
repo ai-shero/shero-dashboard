@@ -54,14 +54,10 @@ router.get('/', async (req, res) => {
     console.error('[Shopify] DB error:', err.message);
   }
 
-  const mock = generateMock(start, end, 4200, 38);
-  res.json({ channel: 'shopify', ...mock, live: false, note: 'mock — run: npm run login:shopify' });
+  // No cached rows for this range → report zeros. (This used to return random
+  // MOCK revenue — leftover demo scaffolding — which fabricated money for any
+  // range outside data coverage and poisoned period-over-period deltas.)
+  res.json({ channel: 'shopify', revenue: 0, orders: 0, live: false });
 });
-
-function generateMock(start, end, baseRevenue, baseOrders) {
-  const days = Math.max(1, (new Date(end) - new Date(start)) / 86400000 + 1);
-  const v    = () => 0.7 + Math.random() * 0.6;
-  return { revenue: +(baseRevenue * days * v() / 30).toFixed(2), orders: Math.round(baseOrders * days * v() / 30) };
-}
 
 module.exports = router;
