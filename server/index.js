@@ -30,6 +30,12 @@ app.use('/api/tiktok', require('./routes/tiktok'));
 app.use('/api/rankings', require('./routes/rankings'));
 app.use('/api/manual', require('./routes/manual'));
 
+// Health check (CORS-open so the SHERO app portal can read true status cross-origin)
+app.get('/api/health', (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.json({ ok: true, service: 'shero-dashboard', ts: new Date().toISOString() });
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'client', 'public', 'index.html'));
 });
