@@ -1,11 +1,13 @@
 # Shero Dashboard - Lazada gross-sales correction.
 #
-# Runs each morning (06:00) when Lazada is freshest (no rapid access yet), and
-# overwrites the realtime-frozen Lazada gross_sales with the date-accurate
-# BA overviewV2 payAmount. Spaced per-day (LZ_DELAY_MS) to avoid Lazada throttling.
+# Run by the "Shero Dashboard - Lazada Gross Fix" task (daily 06:00). Lazada is
+# freshest in the morning (no prior access), so its BA metrics aren't throttled.
+# Overwrites the realtime-frozen Lazada gross_sales with the date-accurate BA
+# overviewV2 payAmount. Spaced per-day (LZ_DELAY_MS) to avoid throttling.
 #
-# Backfills June 1 -> yesterday by default. Idempotent (safe to re-run daily);
-# once the range is confirmed correct you can disable/remove this task.
+# The scraper self-launches its own Chrome via Playwright (scrapers/cdp.js), so
+# there is NO Chrome launch or CDP-port dependency here (mirrors run-daily.ps1).
+# Idempotent; disable this task once the range is confirmed correct.
 
 $scrapers = $PSScriptRoot
 $root     = Split-Path $scrapers -Parent
@@ -20,23 +22,15 @@ function Write-Log($msg) {
 
 Write-Log "===== Lazada gross correction starting ====="
 
-function Test-Cdp {
-  try { Invoke-WebRequest -Uri "http://localhost:9222/json/version" -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop | Out-Null; return $true }
-  catch { return $false }
-}
-
-if (-not (Test-Cdp)) {
-  Write-Log "Chrome CDP not running - launching..."
-  & (Join-Path $scrapers "launch-chrome.ps1")
-  $ready = $false
-  for ($i = 0; $i -lt 60; $i++) { if (Test-Cdp) { $ready = $true; break }; Start-Sleep -Seconds 1 }
-  if (-not $ready) { Write-Log "ERROR: Chrome CDP not ready after 60s. Aborting."; exit 1 }
-}
-
 Set-Location $root
 $env:LZ_DELAY_MS = "8000"
-Write-Log "Running lazada-gross-backfill.js (June 1 -> yesterday)..."
+Write-Log "Running node scrapers/lazada-gross-backfill.js (June 1 -> yesterday)..."
 & node scrapers/lazada-gross-backfill.js 2026-06-01 *>> $logFile
 $code = $LASTEXITCODE
-Write-Log "Finished (exit $code)."
+
+if ($code -eq 0) {
+  Write-Log "Finished OK (exit 0)."
+} else {
+  Write-Log "ERROR: exit $code. If Lazada login expired, run: node scrapers/login.js"
+}
 exit $code
