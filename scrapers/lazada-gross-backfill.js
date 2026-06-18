@@ -57,8 +57,12 @@ async function main() {
   for (let d = since; d <= until; d = addDays(d, 1)) dates.push(d);
   console.log(`[LazadaGross] Backfilling ${dates.length} day(s): ${since}..${until}`);
 
-  let ok = 0, fail = 0;
+  // Spacing between days avoids Lazada throttling its BA metrics under rapid access.
+  const DELAY = parseInt(process.env.LZ_DELAY_MS || '8000', 10);
+  let ok = 0, fail = 0, first = true;
   for (const d of dates) {
+    if (!first) await sleep(DELAY);
+    first = false;
     let r = null;
     try { r = await wt(fetchDay(d), 45000, 'day'); }
     catch (e) { if (/NOT_LOGGED_IN/.test(e.message)) { console.error('[LazadaGross] NOT LOGGED IN — aborting.'); break; } }

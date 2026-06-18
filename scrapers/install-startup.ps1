@@ -56,6 +56,29 @@ Register-ScheduledTask `
   -Force | Out-Null
 Write-Host "[Setup] Registered '$scrapeTask' (nightly 00:30, catches up if missed)."
 
+# ── Task 3: Lazada gross correction at 06:00 ─────────────────────────────────
+# Lazada's nightly gross is realtime-frozen/overstated. This runs in the morning
+# (Lazada freshest, un-throttled) and overwrites it with the date-accurate
+# overviewV2 payAmount. Idempotent; disable once the range is confirmed correct.
+$lzScript = Join-Path $PSScriptRoot "lazada-gross.ps1"
+$lzTask   = "Shero Dashboard - Lazada Gross Fix"
+$lzAction = New-ScheduledTaskAction `
+  -Execute "powershell.exe" `
+  -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$lzScript`""
+$lzTrigger = New-ScheduledTaskTrigger -Daily -At "6:00AM"
+$lzSettings = New-ScheduledTaskSettingsSet `
+  -StartWhenAvailable `
+  -ExecutionTimeLimit (New-TimeSpan -Minutes 30) `
+  -RestartCount 1 -RestartInterval (New-TimeSpan -Minutes 10)
+Register-ScheduledTask `
+  -TaskName $lzTask `
+  -Action $lzAction `
+  -Trigger $lzTrigger `
+  -Settings $lzSettings `
+  -Principal $principal `
+  -Force | Out-Null
+Write-Host "[Setup] Registered '$lzTask' (daily 06:00 - corrects Lazada gross)."
+
 Write-Host ""
 Write-Host "[Setup] Done."
 Write-Host ""
