@@ -27,7 +27,7 @@ async function fetchDay(date) {
   const { page } = await cdp.newPage();
   let ov = null;
   page.on('response', async res => {
-    if (res.url().includes('key/overviewV2.json')) { try { const j = await res.json(); ov = j?.result?.data || j?.result; } catch (_) {} }
+    if (res.url().includes('key/overviewV2.json')) { try { const j = await res.json(); ov = j?.data || j?.result?.data || j?.result; } catch (_) {} }
   });
   try {
     await wt(page.goto(`https://sellercenter.lazada.com.my/ba/dashboard?dateRange=${date}%7C${date}&dateType=recent1`,
