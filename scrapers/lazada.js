@@ -65,6 +65,22 @@ async function scrapeMetrics(page, date) {
   const BA_URL = `https://sellercenter.lazada.com.my/ba/dashboard?dateRange=${date}%7C${date}&dateType=recent1`;
   console.log('[Lazada] Navigating to BA dashboard:', BA_URL);
 
+  // Capture the DATE-ACCURATE gross from the BA overviewV2 metrics call (fires on the
+  // dashboard load). The "Ranking by Revenue" sum parseBaData reads is a REALTIME widget
+  // — not date-specific — so payAmount (statDate-matched) overrides it when available.
+  // NOTE: the payload's data is at j.data, NOT j.result.data.
+  let ovPayAmount = null;
+  const onOverview = async (res) => {
+    if (!res.url().includes('key/overviewV2.json')) return;
+    try {
+      const j = await res.json();
+      const d = j?.data || j?.result?.data || j?.result || {};
+      const v = d.payAmount && typeof d.payAmount === 'object' ? d.payAmount.value : d.payAmount;
+      if (v != null) ovPayAmount = +v;
+    } catch (_) {}
+  };
+  page.on('response', onOverview);
+
   await page.goto(BA_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(4000);
   console.log('[Lazada] BA URL:', page.url());
@@ -143,7 +159,14 @@ async function scrapeMetrics(page, date) {
   });
   console.log('[Lazada] Ads tokens:', JSON.stringify(adsTokens.slice(0, 80)));
 
-  return parseBaData(tokens, adsTokens, kmSlides);
+  page.off('response', onOverview);
+  const result = parseBaData(tokens, adsTokens, kmSlides) || {};
+  // Override the realtime-ranking gross with the date-accurate payAmount.
+  if (ovPayAmount != null) {
+    console.log(`[Lazada] gross from overviewV2 payAmount: ${ovPayAmount} (was ${result.grossSales ?? 'n/a'} from ranking)`);
+    result.grossSales = ovPayAmount;
+  }
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 /* ─── parseBaData ────────────────────────────────────────────────────────── */
@@ -292,7 +315,7 @@ function parseProductRankings(items) {
 }
 
 /* ─── scrape ─────────────────────────────────────────────────────────────── */
-async function scrape(date) {
+async function _scrapeImpl(date) {
   const { page } = await cdp.newPage();
 
   try {
@@ -337,6 +360,17 @@ async function scrape(date) {
   } finally {
     await page.close(); // close tab only — never close the browser
   }
+}
+
+// Public entry point — hard 7-minute timeout. Lazada pages can hang (no Playwright
+// default timeout on some ops); without this the whole nightly run stalls.
+async function scrape(date) {
+  return Promise.race([
+    _scrapeImpl(date),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Lazada scrape timed out after 7 minutes')), 420000)
+    ),
+  ]);
 }
 
 module.exports = { scrape };
