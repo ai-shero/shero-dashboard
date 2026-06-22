@@ -225,6 +225,21 @@ table.ch tbody tr:hover td{background:var(--bg)}
 </head>
 <body>
 
+<!-- ─── Login overlay (shared password) ──────────────────── -->
+<div id="auth-overlay" style="position:fixed;inset:0;z-index:9999;background:#0c0c12;display:none;align-items:center;justify-content:center;padding:20px">
+  <form id="login-form" onsubmit="return dashLogin(event)"
+        style="width:100%;max-width:320px;background:#16161f;border:1px solid #2a2a38;border-radius:14px;padding:26px;color:#eee;font-family:inherit">
+    <div style="font-size:20px;font-weight:700;letter-spacing:.04em;margin-bottom:4px">SHERO · OPS</div>
+    <div style="font-size:12px;color:#888;margin-bottom:20px">Sales Dashboard — staff access</div>
+    <label style="font-size:12px;color:#aaa">Password</label>
+    <input id="login-password" type="password" autocomplete="current-password" autofocus
+           style="width:100%;padding:11px;margin:6px 0 10px;border:1px solid #33333f;border-radius:8px;background:#0e0e15;color:#fff;font-size:15px" required />
+    <div id="login-error" style="color:#f0807a;font-size:13px;min-height:18px;margin-bottom:8px"></div>
+    <button type="submit" id="login-btn"
+            style="width:100%;padding:11px;background:#da0046;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">Enter</button>
+  </form>
+</div>
+
 <!-- ─── Header ───────────────────────────────────────────── -->
 <header class="site-header">
   <div class="header-brand">SHERO · OPS</div>
@@ -479,11 +494,41 @@ document.addEventListener('DOMContentLoaded',()=>{
   }));
 
   setTheme(localStorage.getItem('shero-theme')||'light');
+  bootstrapAuth();
+});
+
+// ─── Auth gate (shared password) ─────────────────────────
+function startDashboard(){
   loadDailyData().then(()=>{ loadSummary(); });
   loadScrapeStatus();
   loadChannelHealth();
   loadRankings();
-});
+}
+
+async function dashLogin(e){
+  e.preventDefault();
+  const errEl=document.getElementById('login-error'); errEl.textContent='';
+  const btn=document.getElementById('login-btn'); btn.disabled=true;
+  try{
+    const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({password:document.getElementById('login-password').value})});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok){ errEl.textContent=data.error||'Login failed'; return false; }
+    document.getElementById('login-password').value='';
+    document.getElementById('auth-overlay').style.display='none';
+    startDashboard();
+  }catch(_){ errEl.textContent='Network error — please try again.'; }
+  finally{ btn.disabled=false; }
+  return false;
+}
+
+async function bootstrapAuth(){
+  try{
+    const {authed}=await fetch('/api/auth/me').then(r=>r.json());
+    if(authed){ document.getElementById('auth-overlay').style.display='none'; startDashboard(); return; }
+  }catch(_){}
+  document.getElementById('auth-overlay').style.display='flex';
+}
 
 function clearActive(){
   document.querySelectorAll('.period-tab').forEach(b=>b.classList.remove('active'));

@@ -1,9 +1,12 @@
 require('dotenv').config();
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const { init } = require('./db');
+const { requireAuth } = require('./auth');
 
 const app = express();
+app.set('trust proxy', 1); // Render terminates HTTPS; trust one proxy hop
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -18,7 +21,27 @@ app.use((req, _res, next) => {
   next();
 });
 
+// Health check (CORS-open so the SHERO app portal can read true status cross-origin).
+// Public — declared before the auth gate.
+app.get('/api/health', (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.json({ ok: true, service: 'shero-dashboard', ts: new Date().toISOString() });
+});
+
+// Auth endpoints must be reachable without a session. Throttle login guesses.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts — please wait a few minutes and try again.' },
+});
+app.use('/api/auth', authLimiter, require('./routes/auth'));
+
+// The login page (and its assets) must load without a session, so static files
+// stay public. Everything else under /api requires a valid session.
 app.use(express.static(path.join(__dirname, '..', 'client', 'public')));
+app.use('/api', requireAuth);
 
 app.use('/api/settings', require('./routes/settings').router);
 app.use('/api/summary', require('./routes/summary'));
@@ -29,12 +52,6 @@ app.use('/api/lazada', require('./routes/lazada'));
 app.use('/api/tiktok', require('./routes/tiktok'));
 app.use('/api/rankings', require('./routes/rankings'));
 app.use('/api/manual', require('./routes/manual'));
-
-// Health check (CORS-open so the SHERO app portal can read true status cross-origin)
-app.get('/api/health', (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.json({ ok: true, service: 'shero-dashboard', ts: new Date().toISOString() });
-});
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'client', 'public', 'index.html'));
