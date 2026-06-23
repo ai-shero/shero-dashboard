@@ -161,11 +161,16 @@ async function scrapeMetrics(page, date) {
 
   page.off('response', onOverview);
   const result = parseBaData(tokens, adsTokens, kmSlides) || {};
-  // Override the realtime-ranking gross with the date-accurate payAmount.
+  // ALWAYS use the date-accurate payAmount as gross. The "Ranking by Revenue" sum is a
+  // realtime widget and is WRONG, so if payAmount wasn't captured (e.g. Lazada throttled
+  // overviewV2), store null — NOT the misleading ranking value. run.js's merge-upsert keeps
+  // any existing good value when the incoming one is null, so a throttled night self-heals.
   if (ovPayAmount != null) {
-    console.log(`[Lazada] gross from overviewV2 payAmount: ${ovPayAmount} (was ${result.grossSales ?? 'n/a'} from ranking)`);
-    result.grossSales = ovPayAmount;
+    console.log(`[Lazada] gross from overviewV2 payAmount: ${ovPayAmount} (ranking was ${result.grossSales ?? 'n/a'})`);
+  } else {
+    console.warn('[Lazada] overviewV2 payAmount unavailable (throttled?) — gross set null, not the realtime ranking');
   }
+  result.grossSales = ovPayAmount;   // null when unavailable — never the wrong ranking sum
   return Object.keys(result).length > 0 ? result : null;
 }
 
