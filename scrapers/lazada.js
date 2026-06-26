@@ -391,7 +391,10 @@ module.exports = { scrape };
 if (require.main === module) {
   const myt       = new Date(Date.now() + 8 * 3600000);
   const yesterday = new Date(+myt - 86400000).toISOString().slice(0, 10);
+  // cdp.newPage() uses a PERSISTENT Chrome context that is never closed, so the open
+  // browser handle keeps Node's event loop alive — the CLI would hang forever after the
+  // scrape finished (or errored), and piped output never flushed. Force-exit like run.js.
   scrape(process.argv[2] || yesterday)
-    .then(d => console.log('[Result]', JSON.stringify(d, null, 2)))
-    .catch(console.error);
+    .then(d => { console.log('[Result]', JSON.stringify(d, null, 2)); process.exit(0); })
+    .catch(e => { console.error(e); process.exit(1); });
 }
