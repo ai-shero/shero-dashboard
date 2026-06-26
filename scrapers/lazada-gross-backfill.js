@@ -32,7 +32,13 @@ async function fetchDay(date) {
   try {
     await wt(page.goto(`https://sellercenter.lazada.com.my/ba/dashboard?dateRange=${date}%7C${date}&dateType=recent1`,
       { waitUntil: 'domcontentloaded', timeout: 25000 }), 30000, 'goto');
-    if (page.url().includes('login')) throw new Error('NOT_LOGGED_IN');
+    // Lazada momentarily lands on /login then auto-redirects to the dashboard when a valid
+    // session exists (5-10s). Checking the URL immediately gives a false NOT_LOGGED_IN — that
+    // aborted the whole 06:00 backstop every morning even when the 00:35 nightly was logged in.
+    // Wait for the redirect to settle before judging login state.
+    const onLogin = () => /\/(login|register|signin)/.test(new URL(page.url()).pathname);
+    if (onLogin()) { try { await page.waitForURL(() => !onLogin(), { timeout: 15000 }); } catch (_) {} await sleep(1500); }
+    if (onLogin()) throw new Error('NOT_LOGGED_IN');
     // scroll to trigger Lazada's lazy metric fetches (overviewV2 fires after scroll)
     await sleep(2500);
     for (const f of [0.3, 0.6, 0.4]) { await page.evaluate(y => window.scrollTo(0, document.body.scrollHeight * y), f).catch(()=>{}); await sleep(1200); }

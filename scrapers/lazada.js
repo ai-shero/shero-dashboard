@@ -85,12 +85,19 @@ async function scrapeMetrics(page, date) {
   await page.waitForTimeout(4000);
   console.log('[Lazada] BA URL:', page.url());
 
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
-  await page.waitForTimeout(1500);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForTimeout(3000);
-  await page.evaluate(() => window.scrollTo(0, 0));
+  // overviewV2 is a LAZY XHR that only fires after the dashboard is scrolled, and it can
+  // take several seconds. Scroll in increments (a single jump-to-bottom often doesn't
+  // trigger it) then POLL until payAmount is captured — the same recipe the standalone
+  // backfill uses. Critically, do NOT navigate to the Ads page until it fires, or the
+  // pending request is aborted (the old bug: nightly gross fell back to null every night).
+  for (const f of [0.3, 0.6, 0.4, 0.8]) {
+    await page.evaluate((y) => window.scrollTo(0, document.body.scrollHeight * y), f).catch(() => {});
+    await page.waitForTimeout(1200);
+  }
+  for (let i = 0; i < 10 && ovPayAmount == null; i++) await page.waitForTimeout(1500);
+  await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {});
   await page.waitForTimeout(1000);
+  if (ovPayAmount != null) console.log(`[Lazada] overviewV2 captured during scroll: payAmount=${ovPayAmount}`);
 
   // Key Metrics Slick carousel slides
   const kmSlides = await page.evaluate(() => {
