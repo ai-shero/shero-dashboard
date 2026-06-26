@@ -3,9 +3,10 @@
 # Run this ONCE in an ELEVATED PowerShell (Administrator). Registering/removing
 # tasks that were previously created elevated requires admin.
 #
-# As of the Playwright self-launch refactor, there is only ONE task:
-#   "SHERO Dashboard - Daily Scrape" — runs the self-healing scraper nightly at
-#   00:30, and catches up if a scheduled start was missed (PC asleep / off).
+# Registers these tasks (all run the scraper, which self-launches its own Chrome):
+#   "SHERO Dashboard - Daily Scrape"      nightly 00:30, self-healing catch-up
+#   "Shero Dashboard - Lazada Gross Fix"  daily 06:00, corrects Lazada gross
+#   "Shero Dashboard - Lazada Keepalive"  every 45 min, keeps Lazada logged in
 #
 # The old "Shero Dashboard - Chrome CDP" task (which launched a separate Chrome
 # for remote debugging on port 9222) is GONE — the scraper now launches its own
@@ -78,6 +79,33 @@ Register-ScheduledTask `
   -Principal $principal `
   -Force | Out-Null
 Write-Host "[Setup] Registered '$lzTask' (daily 06:00 - corrects Lazada gross)."
+
+# -- Task 4: Lazada session keepalive every 45 min ----------------------------
+# Lazada seller sessions are ~1-hour rolling tokens (t_sid / EGG_SESS), so a
+# once-a-day scrape can't keep them alive -> logged out by the 00:30 nightly.
+# This touches a light Lazada page every 45 min to roll the session forward.
+# If a scrape is running, the profile is locked and keepalive.js skips (exit 0).
+$kaScript = Join-Path $PSScriptRoot "keepalive.ps1"
+$kaTask   = "Shero Dashboard - Lazada Keepalive"
+$kaAction = New-ScheduledTaskAction `
+  -Execute "powershell.exe" `
+  -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$kaScript`""
+# Start at 00:45 (staggered from the 00:30 nightly), repeat every 45 min, ~forever.
+$kaTrigger = New-ScheduledTaskTrigger -Once -At "12:45AM" `
+  -RepetitionInterval (New-TimeSpan -Minutes 45) `
+  -RepetitionDuration ([TimeSpan]::FromDays(3650))
+$kaSettings = New-ScheduledTaskSettingsSet `
+  -StartWhenAvailable `
+  -MultipleInstances IgnoreNew `
+  -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
+Register-ScheduledTask `
+  -TaskName $kaTask `
+  -Action $kaAction `
+  -Trigger $kaTrigger `
+  -Settings $kaSettings `
+  -Principal $principal `
+  -Force | Out-Null
+Write-Host "[Setup] Registered '$kaTask' (every 45 min - keeps Lazada logged in)."
 
 Write-Host ""
 Write-Host "[Setup] Done."
