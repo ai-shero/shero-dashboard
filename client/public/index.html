@@ -221,6 +221,69 @@ table.ch tbody tr:hover td{background:var(--bg)}
 .toast.show{opacity:1;transform:translateY(0)}
 .colophon{border-top:1px solid var(--ink);margin-top:40px;padding-top:16px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--sub);transition:border-color var(--transition)}
 .loading{padding:30px;text-align:center;color:var(--sub);font-family:var(--mono);font-size:12px}
+
+/* ─── Ecosystem tab ──────────────────────────────────────── */
+#ecosystemView{display:none}
+.app.eco-mode>:not(#ecosystemView){display:none!important}
+.app.eco-mode #ecosystemView{display:block}
+.eco-wrap{max-width:1080px;margin:0 auto;padding-top:8px;animation:modal-in .25s ease}
+.eco-eyebrow{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
+.eco-h1{font-family:var(--serif);font-size:clamp(26px,4vw,42px);line-height:1.05;letter-spacing:-.02em;font-weight:700;margin:0;max-width:18ch}
+.eco-h1 em{font-style:italic;color:var(--accent)}
+.eco-lede{font-family:var(--sans);color:var(--sub);font-size:15px;max-width:62ch;margin:14px 0 0;line-height:1.55}
+.eco-stats{display:flex;flex-wrap:wrap;border:1px solid var(--border);margin:26px 0 0;background:var(--paper)}
+.eco-stat{flex:1 1 auto;min-width:110px;padding:12px 16px;border-right:1px solid var(--border)}
+.eco-stat:last-child{border-right:0}
+.eco-stat b{display:block;font-family:var(--serif);font-size:22px;font-weight:700;color:var(--ink)}
+.eco-stat span{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--sub)}
+.eco-stack{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;margin:22px 0 40px;padding:14px 18px;background:var(--bg);border-left:3px solid var(--accent)}
+.eco-stack .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--sub);font-weight:700}
+.eco-tech{font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--paper);border:1px solid var(--border);padding:3px 9px}
+.eco-layerhead{display:flex;align-items:baseline;gap:12px;margin:0 0 14px;flex-wrap:wrap}
+.eco-idx{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:700}
+.eco-layerhead h2{font-family:var(--serif);font-size:18px;font-weight:700;margin:0;letter-spacing:-.01em;color:var(--ink)}
+.eco-layerhead .note{font-family:var(--sans);font-size:13px;color:var(--sub)}
+.eco-spine{display:flex;align-items:center;gap:14px;color:var(--sub);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin:6px 0 24px}
+.eco-spine::before,.eco-spine::after{content:"";height:1px;background:var(--border);flex:1}
+.eco-spine b{color:var(--accent)}
+.eco-grid{display:grid;gap:14px;grid-template-columns:repeat(3,1fr);margin-bottom:26px}
+@media(max-width:800px){.eco-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:540px){.eco-grid{grid-template-columns:1fr}}
+.eco-card{background:var(--paper);border:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:9px;position:relative;transition:border-color var(--transition),transform var(--transition)}
+.eco-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.eco-card.here{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.eco-r1{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.eco-chan{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--accent)}
+.eco-card h3{font-family:var(--serif);font-size:19px;font-weight:700;margin:2px 0 0;letter-spacing:-.01em;color:var(--ink)}
+.eco-desc{font-family:var(--sans);font-size:13px;color:var(--sub);margin:0;line-height:1.5}
+.eco-meta{margin-top:auto;padding-top:9px;border-top:1px dashed var(--border);display:flex;flex-direction:column;gap:3px}
+.eco-meta div{font-family:var(--mono);font-size:11px;color:var(--sub);display:flex;gap:8px}
+.eco-meta .lbl{color:var(--sub);opacity:.7;min-width:40px}
+.eco-meta a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)}
+.eco-meta a:hover{color:var(--accent);border-color:var(--accent)}
+.eco-pill{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.04em;padding:3px 8px;text-transform:uppercase;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.eco-pill .d{width:6px;height:6px;border-radius:50%}
+.eco-pill.live{color:var(--green);background:rgba(26,138,58,.12)}.eco-pill.live .d{background:var(--green)}
+.eco-pill.pending{color:var(--accent);background:rgba(218,0,70,.1)}.eco-pill.pending .d{background:var(--accent)}
+.eco-pill.here{color:var(--accent);background:rgba(218,0,70,.14)}.eco-pill.here .d{background:var(--accent)}
+.eco-in{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.eco-in .from{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--sub);font-weight:700}
+.eco-src{font-family:var(--mono);font-size:10.5px;padding:2px 7px;border:1px solid var(--border);color:var(--sub);background:var(--bg)}
+.eco-src.ext{border-style:dashed}
+.eco-split{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0 30px}
+@media(max-width:620px){.eco-split{grid-template-columns:1fr}}
+.eco-panel{background:var(--paper);border:1px solid var(--border);padding:16px 18px}
+.eco-panel h3{font-family:var(--serif);font-size:16px;font-weight:700;margin:0 0 4px;color:var(--ink)}
+.eco-panel h3 .tag{font-family:var(--mono);font-size:10px;color:var(--sub);font-weight:500;margin-left:8px}
+.eco-panel p{font-family:var(--sans);font-size:13px;color:var(--sub);margin:6px 0 0;line-height:1.5}
+.eco-panel code{font-family:var(--mono);font-size:12px;color:var(--ink)}
+.eco-notes{border-top:1px solid var(--border);padding-top:20px}
+.eco-notes ul{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:11px}
+.eco-notes li{display:grid;grid-template-columns:auto 1fr;gap:12px;font-family:var(--sans);font-size:13px;color:var(--sub);line-height:1.5}
+.eco-notes li b{color:var(--ink);font-weight:600}
+.eco-notes .mk{font-family:var(--mono);font-size:10px;color:var(--accent);font-weight:700;padding-top:2px}
+.eco-notes code{font-family:var(--mono);font-size:12px;color:var(--ink)}
+.eco-foot{margin-top:30px;padding-top:16px;border-top:1px solid var(--ink);font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--sub);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -234,6 +297,7 @@ table.ch tbody tr:hover td{background:var(--bg)}
     <button class="period-tab" data-period="mtd">MTD</button>
     <button class="period-tab" data-period="ytd">YTD</button>
     <button class="period-tab" data-period="daily">History</button>
+    <button class="period-tab" data-period="ecosystem">Ecosystem</button>
     <input type="month" class="month-pick" id="monthPick" onchange="selectMonth(this.value)" title="View a full month">
     <input type="date" class="month-pick" id="dayPick" onchange="selectDay(this.value)" title="View a single day">
   </nav>
@@ -359,6 +423,118 @@ table.ch tbody tr:hover td{background:var(--bg)}
     </div>
   </section>
 
+  <!-- ── Ecosystem view (top-level tab) ──────────────────── -->
+  <div id="ecosystemView">
+    <div class="eco-wrap">
+
+      <div class="eco-eyebrow">SHERO · Internal Systems</div>
+      <h1 class="eco-h1">The app ecosystem, <em>mapped.</em></h1>
+      <p class="eco-lede">Six apps, one launcher, two knowledge repos — every one on the same house stack, each owning its own data. Two apps invent nothing of their own: they read the others.</p>
+
+      <div class="eco-stats">
+        <div class="eco-stat"><b>6</b><span>Apps</span></div>
+        <div class="eco-stat"><b>1</b><span>Portal</span></div>
+        <div class="eco-stat"><b>2</b><span>Support repos</span></div>
+        <div class="eco-stat"><b>7</b><span>Sales channels</span></div>
+        <div class="eco-stat"><b>1</b><span>Shared stack</span></div>
+      </div>
+
+      <div class="eco-stack">
+        <span class="k">Every&nbsp;app</span>
+        <span class="eco-tech">Node · Express</span>
+        <span class="eco-tech">Turso / libSQL</span>
+        <span class="eco-tech">Vanilla single-file UI</span>
+        <span class="eco-tech">bcrypt + JWT</span>
+        <span class="eco-tech">Render ← main</span>
+        <span class="eco-tech">RM in cents</span>
+      </div>
+
+      <!-- 00 Portal -->
+      <div class="eco-layerhead"><span class="eco-idx">00</span><h2>The front door</h2><span class="note">no login · role-gated · pings every app every 60s, warming cold starts</span></div>
+      <div class="eco-grid" style="grid-template-columns:1fr">
+        <div class="eco-card">
+          <div class="eco-r1"><div><div class="eco-chan">Static launcher</div><h3>SHERO Portal</h3></div><span class="eco-pill live"><span class="d"></span>Live</span></div>
+          <p class="eco-desc">A glass-card grid linking to every app below, gated by role. The only thing that knows the whole map — purely by URL.</p>
+          <div class="eco-meta"><div><span class="lbl">url</span><a href="https://apps.shero.my" target="_blank" rel="noopener">apps.shero.my</a><span>· Render static</span></div></div>
+        </div>
+      </div>
+
+      <div class="eco-spine"><b>↓</b>&nbsp;launches</div>
+
+      <!-- 01 Systems of record -->
+      <div class="eco-layerhead"><span class="eco-idx">01</span><h2>Systems of record</h2><span class="note">each owns its data — the source everything downstream reads</span></div>
+      <div class="eco-grid">
+        <div class="eco-card">
+          <div class="eco-r1"><div><div class="eco-chan">Point of sale</div><h3>SHERO POS</h3></div><span class="eco-pill live"><span class="d"></span>Live</span></div>
+          <p class="eco-desc">Workshop till — variants, vouchers, gift tiers, session batches, fee slips. Syncs stock to an HQ sheet.</p>
+          <div class="eco-meta"><div><span class="lbl">url</span><a href="https://pos-uydb.onrender.com" target="_blank" rel="noopener">pos-uydb.onrender.com</a></div><div><span class="lbl">roles</span>admin · workshop</div></div>
+        </div>
+        <div class="eco-card">
+          <div class="eco-r1"><div><div class="eco-chan">B2B billing</div><h3>SHERO Invoicing</h3></div><span class="eco-pill live"><span class="d"></span>Live</span></div>
+          <p class="eco-desc">Invoices, quotes, credit notes, payments for retailers &amp; stockists. Also imports workshop registration fees from POS. MyInvois deferred.</p>
+          <div class="eco-meta"><div><span class="lbl">url</span><a href="https://shero-invoicing.onrender.com" target="_blank" rel="noopener">shero-invoicing.onrender.com</a></div><div><span class="lbl">roles</span>admin · finance</div></div>
+        </div>
+        <div class="eco-card">
+          <div class="eco-r1"><div><div class="eco-chan">People ops</div><h3>SHERO HR</h3></div><span class="eco-pill live"><span class="d"></span>Live</span></div>
+          <p class="eco-desc">Leave, attendance (geo + selfie), claims, documents, announcements, CSV reports. ~8 staff. Payroll deferred.</p>
+          <div class="eco-meta"><div><span class="lbl">url</span><a href="https://shero-hr.onrender.com" target="_blank" rel="noopener">shero-hr.onrender.com</a></div><div><span class="lbl">roles</span>admin · employee</div></div>
+        </div>
+      </div>
+
+      <div class="eco-spine"><b>↓</b>&nbsp;participants · clients · stock · sales</div>
+
+      <!-- 02 Read / aggregation -->
+      <div class="eco-layerhead"><span class="eco-idx">02</span><h2>Read &amp; aggregation layer</h2><span class="note">own no source data — they resolve, unify and analyse what the others hold</span></div>
+      <div class="eco-grid">
+        <div class="eco-card">
+          <div class="eco-r1"><div><div class="eco-chan">Customer graph</div><h3>SHERO CRM</h3></div><span class="eco-pill live"><span class="d"></span>Live</span></div>
+          <p class="eco-desc">One deduplicated customer across every channel, phone-first identity resolution. Shopify (4,776) is the anchor; import UI shipped.</p>
+          <div class="eco-in"><span class="from">Inputs</span><span class="eco-src">POS</span><span class="eco-src">Invoicing</span><span class="eco-src ext">Shopify</span><span class="eco-src ext">Woztell</span><span class="eco-src ext">markets</span></div>
+          <div class="eco-meta"><div><span class="lbl">url</span><a href="https://shero-crm.onrender.com" target="_blank" rel="noopener">shero-crm.onrender.com</a></div><div><span class="lbl">roles</span>admin · content · finance</div></div>
+        </div>
+        <div class="eco-card">
+          <div class="eco-r1"><div><div class="eco-chan">Stock unifier</div><h3>SHERO Inventory</h3></div><span class="eco-pill pending"><span class="d"></span>Live · reorder pending</span></div>
+          <p class="eco-desc">Unifies the two pools Flybear can't see together — 3PL warehouse + workshop — with combined alerts &amp; HQ reconciliation. M1–M4 shipped; guided reorder (M5) to come.</p>
+          <div class="eco-in"><span class="from">Inputs</span><span class="eco-src ext">Flybear</span><span class="eco-src">POS stock</span></div>
+          <div class="eco-meta"><div><span class="lbl">url</span><a href="https://shero-inventory.onrender.com" target="_blank" rel="noopener">shero-inventory.onrender.com</a></div><div><span class="lbl">roles</span>admin · workshop · eng</div></div>
+        </div>
+        <div class="eco-card here">
+          <div class="eco-r1"><div><div class="eco-chan">Analytics · you are here</div><h3>SHERO Dashboard</h3></div><span class="eco-pill here"><span class="d"></span>This app</span></div>
+          <p class="eco-desc">Seven-channel consolidated sales + the morning review. A Playwright scraper per channel, kept warm by a nightly Windows task.</p>
+          <div class="eco-in"><span class="from">Channels</span><span class="eco-src ext">Shopify</span><span class="eco-src">POS</span><span class="eco-src ext">Shopee</span><span class="eco-src ext">Lazada</span><span class="eco-src ext">TikTok</span></div>
+          <div class="eco-meta"><div><span class="lbl">url</span><a href="https://shero-dashboard.onrender.com" target="_blank" rel="noopener">shero-dashboard.onrender.com</a></div><div><span class="lbl">roles</span>admin · finance · content · eng</div></div>
+        </div>
+      </div>
+
+      <!-- Support -->
+      <div class="eco-layerhead"><span class="eco-idx">—</span><h2>Not apps — the rails around them</h2></div>
+      <div class="eco-split">
+        <div class="eco-panel">
+          <h3>shero-ai-config <span class="tag">policy repo</span></h3>
+          <p>The canonical company AI rulebook — CLAUDE.md, skills, prompts. An admin merge here <b>is</b> official adoption. Sets the hard rules: PR-only to <code>main</code>, email via Resend (Render blocks SMTP), brand red <code>#DA0046</code>, never pink.</p>
+        </div>
+        <div class="eco-panel">
+          <h3>shero-team-vault <span class="tag">knowledge</span></h3>
+          <p>An Obsidian vault of SOPs, briefs, brand &amp; meeting notes. Its boundary map: <b>GitHub</b> = code &amp; AI, <b>vault</b> = knowledge, <b>Drive</b> = media, <b>password manager</b> = every secret, no exceptions.</p>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="eco-notes">
+        <div class="eco-eyebrow">Worth knowing</div>
+        <ul>
+          <li><span class="mk">01</span><span><b>POS sits on a different Render account</b> than the other five — so the free-tier hour exhaustion that can suspend the SHERO-workspace apps monthly doesn't touch the till.</span></li>
+          <li><span class="mk">02</span><span><b>Each app has its own Turso database.</b> There's no shared DB — CRM and Inventory reach across by API and scraper, never by joining tables.</span></li>
+          <li><span class="mk">03</span><span><b>This dashboard is the odd one out:</b> it deploys from <code>master</code>, not <code>main</code>, and has no server-side auth yet (a <code>feat/auth</code> branch is unmerged).</span></li>
+          <li><span class="mk">04</span><span><b>Brand colour is nearly unified</b> on <code>#DA0046</code> — CRM's UI is the last hold-out still on <code>#e63946</code>.</span></li>
+        </ul>
+      </div>
+
+      <div class="eco-foot"><span>SHERO internal systems map · excludes Ada Trading</span><span>7 channels: Shopify · Shopee · Lazada · TikTok · POS · Parkson · Watsons</span></div>
+
+    </div>
+  </div>
+
   <div class="colophon">
     <div>Shero Ops · Sales Dashboard</div>
     <div>Set in Source Serif 4 &amp; IBM Plex Mono</div>
@@ -463,6 +639,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     btn.addEventListener('click',()=>{
       clearActive(); btn.classList.add('active');
       const p=btn.dataset.period;
+      if(p==='ecosystem'){ SEL={type:'tab',period:'ecosystem'}; document.querySelector('.app').classList.add('eco-mode'); window.scrollTo(0,0); return; }
       if(p==='daily'){ SEL={type:'tab',period:'daily'}; setDailyMode(true); loadDaily(); return; }
       SEL={type:'tab',period:p}; setDailyMode(false); loadSummary();
     });
@@ -739,6 +916,7 @@ function selectDay(ds){
 
 /* ─── Daily / History mode ───────────────────────────────── */
 function setDailyMode(on){
+  document.querySelector('.app').classList.remove('eco-mode');
   document.getElementById('kpiStrip').style.display=on?'none':'';
   document.getElementById('rankingsSection').style.display=on?'none':'';
   document.getElementById('dailyView').classList.toggle('visible',on);
