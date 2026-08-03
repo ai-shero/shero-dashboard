@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 const { apiFetch } = require('../utils/fetch');
+const { INTERNAL_KEY } = require('../auth');
 
 function getDateRange(period) {
   const now = new Date();
@@ -24,7 +25,9 @@ function getDateRange(period) {
 
 async function fetchChannel(url) {
   try {
-    const resp = await apiFetch(url);
+    // These are the dashboard's own server-to-server calls; the internal key
+    // lets them through the session gate without a browser cookie.
+    const resp = await apiFetch(url, { headers: { 'x-internal-key': INTERNAL_KEY } });
     if (!resp.ok) return null;
     return await resp.json();
   } catch { return null; }
